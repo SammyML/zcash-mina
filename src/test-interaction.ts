@@ -1,12 +1,11 @@
 /**
- * Test and Interaction
- *
+ * Test and Interaction Script for Phase 1
+ * 
  * This script demonstrates:
  * 1. Deploying the zkZEC token and Bridge contracts
  * 2. Minting zkZEC tokens (simulating ZEC lock on Zcash)
  * 3. Transferring zkZEC between users
  * 4. Burning zkZEC tokens (simulating ZEC unlock request)
- * 5. Querying bridge statistics
  */
 
 import {
@@ -18,7 +17,7 @@ import {
   Signature,
   Field,
 } from 'o1js';
-import { zkZECToken, Bridge } from './bridge-contracts';
+import { zkZECToken, Bridge } from './bridge-contracts.js';
 
 /**
  * Main test function
@@ -26,9 +25,10 @@ import { zkZECToken, Bridge } from './bridge-contracts';
 async function main() {
   console.log('🚀 Phase 1: zkZEC Bridge PoC - Starting Tests\n');
 
-  
-  // Setup Local Blockchain
-  console.log(' Setting up local Mina blockchain...');
+  // ============================================
+  // STEP 1: Setup Local Blockchain
+  // ============================================
+  console.log('📦 Setting up local Mina blockchain...');
   const Local = await Mina.LocalBlockchain({ proofsEnabled: true });
   Mina.setActiveInstance(Local);
 
@@ -45,14 +45,15 @@ async function main() {
   const user2Account = Local.testAccounts[3];
   const user2Key = user2Account.key;
 
-  console.log(' Local blockchain initialized');
+  console.log('✅ Local blockchain initialized');
   console.log(`   Deployer: ${deployerAccount.toBase58()}`);
   console.log(`   Bridge Operator: ${bridgeOperatorAccount.toBase58()}`);
   console.log(`   User 1: ${user1Account.toBase58()}`);
   console.log(`   User 2: ${user2Account.toBase58()}\n`);
 
-  
-  // Deploy Token Contract
+  // ============================================
+  // STEP 2: Deploy Token Contract
+  // ============================================
   console.log('🪙 Deploying zkZEC Token Contract...');
   
   // Generate keypair for token contract
@@ -73,13 +74,13 @@ async function main() {
   });
   await deployTokenTx.sign([deployerKey, tokenKey]).send();
 
-  console.log(' zkZEC Token deployed!');
+  console.log('✅ zkZEC Token deployed!');
   console.log(`   Token Address: ${tokenAddress.toBase58()}\n`);
 
-
-  // Deploy Bridge Contract
-  
-  console.log(' Deploying Bridge Contract...');
+  // ============================================
+  // STEP 3: Deploy Bridge Contract
+  // ============================================
+  console.log('🌉 Deploying Bridge Contract...');
   
   // Generate keypair for bridge contract
   const bridgeKey = PrivateKey.random();
@@ -88,21 +89,23 @@ async function main() {
   // Create bridge contract instance
   const bridge = new Bridge(bridgeAddress);
 
-  console.log(' Compiling Bridge contract...');
+  console.log('   Compiling Bridge contract...');
   await Bridge.compile();
   
   // Deploy bridge contract
   const deployBridgeTx = await Mina.transaction(deployerAccount, async () => {
     AccountUpdate.fundNewAccount(deployerAccount);
     await bridge.deploy({});
-    await bridge.init(tokenAddress);
+    await bridge.initialize(tokenAddress);
   });
   await deployBridgeTx.sign([deployerKey, bridgeKey]).send();
 
-  console.log(' Bridge Contract deployed!');
-  console.log(` Bridge Address: ${bridgeAddress.toBase58()}\n`);
+  console.log('✅ Bridge Contract deployed!');
+  console.log(`   Bridge Address: ${bridgeAddress.toBase58()}\n`);
 
-  // Mint zkZEC Tokens
+  // ============================================
+  // STEP 4: Mint zkZEC Tokens
+  // ============================================
   console.log('💰 Minting zkZEC tokens (simulating ZEC lock)...');
   
   const mintAmount = UInt64.from(1000000); // 1 zkZEC (assuming 6 decimals)
@@ -121,36 +124,32 @@ async function main() {
   });
   await mintTx.sign([bridgeOperatorKey]).send();
 
-  console.log(' zkZEC tokens minted!');
+  console.log('✅ zkZEC tokens minted!');
   console.log(`   User 1 balance: ${mintAmount.toString()} zkZEC\n`);
 
-  // Transfer zkZEC Between Users
-  
-  console.log(' Transferring zkZEC from User 1 to User 2...');
+  // ============================================
+  // STEP 5: Transfer zkZEC Between Users
+  // ============================================
+  console.log('📤 Transferring zkZEC from User 1 to User 2...');
   
   const transferAmount = UInt64.from(250000); // 0.25 zkZEC
 
   const transferTx = await Mina.transaction(user1Account, async () => {
     AccountUpdate.fundNewAccount(user1Account);
     
-    // User 1 sends tokens to User 2
-    const senderUpdate = AccountUpdate.createSigned(user1Account);
-    senderUpdate.balanceChange = senderUpdate.balanceChange.sub(transferAmount.value);
-    senderUpdate.body.tokenId = token.deriveTokenId();
-    
-    const receiverUpdate = AccountUpdate.create(user2Account);
-    receiverUpdate.balanceChange = receiverUpdate.balanceChange.add(transferAmount.value);
-    receiverUpdate.body.tokenId = token.deriveTokenId();
+    // Use the token's transfer method
+    await token.transfer(user1Account, user2Account, transferAmount);
   });
   await transferTx.sign([user1Key]).send();
 
-  console.log(' Transfer successful!');
+  console.log('✅ Transfer successful!');
   console.log(`   User 1 balance: ${mintAmount.sub(transferAmount).toString()} zkZEC`);
   console.log(`   User 2 balance: ${transferAmount.toString()} zkZEC\n`);
 
-
-  // Burn zkZEC Tokens
-  console.log('Burning zkZEC tokens (requesting ZEC unlock)...');
+  // ============================================
+  // STEP 6: Burn zkZEC Tokens
+  // ============================================
+  console.log('🔥 Burning zkZEC tokens (requesting ZEC unlock)...');
   
   const burnAmount = UInt64.from(100000); // 0.1 zkZEC
   
@@ -167,43 +166,50 @@ async function main() {
   console.log(`   Destination z-addr: ${zcashAddress.toString()}`);
   
   const burnTx = await Mina.transaction(user1Account, async () => {
-    await bridge.burn(burnAmount, zcashAddress, burnSignature);
+    await bridge.burn(user1Account, burnAmount, zcashAddress, burnSignature);
   });
   await burnTx.sign([user1Key]).send();
 
-  console.log('Burn successful!');
-  console.log(' Guardians will be notified to release ZEC on Zcash\n');
+  console.log('✅ Burn successful!');
+  console.log('   Guardians will be notified to release ZEC on Zcash\n');
 
+  // ============================================
+  // STEP 7: Query Bridge Statistics
+  // ============================================
+  console.log('📊 Bridge Statistics:');
   
-  // Query Bridge Statistics
+  const totalMinted = bridge.totalMinted.get();
+  const totalBurned = bridge.totalBurned.get();
   
-  console.log('Bridge Statistics:');
-  
-  const stats = await bridge.getBridgeStats();
-  
-  console.log(`   Total Minted: ${stats.totalMinted.toString()} zkZEC`);
-  console.log(`   Total Burned: ${stats.totalBurned.toString()} zkZEC`);
-  console.log(`   Net Locked (on Zcash): ${stats.netLocked.toString()} ZEC\n`);
+  console.log(`   Total Minted: ${totalMinted.toString()} zkZEC`);
+  console.log(`   Total Burned: ${totalBurned.toString()} zkZEC`);
+  console.log(`   Net Locked (on Zcash): ${totalMinted.sub(totalBurned).toString()} ZEC\n`);
 
-
-  console.log('Phase 1 PoC Complete!');
-  console.log('\n What we demonstrated:');
-  console.log('    Deployed zkZEC custom token on Mina');
-  console.log('    Deployed Bridge contract');
-  console.log('    Minted zkZEC (simulating ZEC lock on Zcash)');
-  console.log('    Transferred zkZEC between users');
-  console.log('    Burned zkZEC (requesting ZEC unlock)');
-  console.log('    Queried bridge statistics');
+  // ============================================
+  // STEP 8: Summary
+  // ============================================
+  console.log('✨ Phase 1 PoC Complete!');
+  console.log('\n📝 What we demonstrated:');
+  console.log('   ✓ Deployed zkZEC custom token on Mina');
+  console.log('   ✓ Deployed Bridge contract');
+  console.log('   ✓ Minted zkZEC (simulating ZEC lock on Zcash)');
+  console.log('   ✓ Transferred zkZEC between users');
+  console.log('   ✓ Burned zkZEC (requesting ZEC unlock)');
+  console.log('   ✓ Queried bridge statistics');
   
+  console.log('\n🔮 Next Steps:');
+  console.log('   → Phase 2: Add external proof verification');
+  console.log('   → Phase 3: Implement recursive light client');
+  console.log('   → Phase 4: Full integration with Zcash proofs');
 }
 
 // Run the test
 main()
   .then(() => {
-    console.log('\n All tests passed successfully!');
+    console.log('\n✅ All tests passed successfully!');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('\n  Error during tests:', error);
+    console.error('\n❌ Error during tests:', error);
     process.exit(1);
   });

@@ -1,8 +1,3 @@
-import { Add } from './Add.js';
-import { AddZkProgram, AddProgramProof } from './AddZkProgram.js';
-
-export { Add, AddZkProgram, AddProgramProof };
-
 /**
  * Main Entry Point
  * 
@@ -10,12 +5,12 @@ export { Add, AddZkProgram, AddProgramProof };
  * Import from here in your applications:
  * 
  * ```typescript
- * import { zkZECToken, Bridge } from './index';
+ * import { zkZECToken, Bridge } from './index.js';
  * ```
  */
 
 // Export the main contracts
-export { zkZECToken, Bridge } from './bridge-contracts';
+export { zkZECToken, Bridge } from './bridge-contracts.js';
 
 // Re-export commonly used o1js types for convenience
 export {
@@ -36,25 +31,7 @@ export {
   TokenContract,
 } from 'o1js';
 
-/**
- * Type definitions for bridge events
- */
-export type MintEvent = {
-  recipient: PublicKey;
-  amount: UInt64;
-};
-
-export type WithdrawalEvent = {
-  amount: UInt64;
-  zcashAddress: Field;
-  minaAddress: PublicKey;
-};
-
-export type BridgeStats = {
-  totalMinted: UInt64;
-  totalBurned: UInt64;
-  netLocked: UInt64;
-};
+import type { PublicKey } from 'o1js';
 
 /**
  * Helper functions for working with the bridge

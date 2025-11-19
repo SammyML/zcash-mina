@@ -1,5 +1,5 @@
 /**
- * Mock Bridge & zkZEC Token (Mina-Side)
+ * PHASE 1: Mock Bridge & zkZEC Token (Mina-Side)
  * 
  * This is a Proof of Concept implementation for a Zcash-Mina bridge.
  * Phase 1 focuses on creating the basic token and bridge infrastructure on Mina.
@@ -23,9 +23,8 @@ import {
   Permissions,
   DeployArgs,
   TokenContract,
-  AccountUpdate,
   AccountUpdateForest,
-  Bool,
+  AccountUpdate,
   Field,
 } from 'o1js';
 
@@ -63,8 +62,6 @@ export class zkZECToken extends TokenContract {
       send: Permissions.proof(),
       // Receiving requires proof authorization  
       receive: Permissions.proof(),
-      // Access to token functionality requires proof
-      access: Permissions.proof(),
     });
   }
 
@@ -87,12 +84,13 @@ export class zkZECToken extends TokenContract {
    * Required by TokenContract - approves or denies token operations
    * For Phase 1, we approve all operations from the bridge
    * 
-   * @param updates - Forest of account updates to approve
+   * @param forest - Forest of account updates to approve
    */
   @method
-  async approveBase(updates: AccountUpdateForest): Promise<void> {
-    // Get current state
-    this.checkZeroBalanceChange(updates);
+  async approveBase(forest: AccountUpdateForest): Promise<void> {
+    // Simple approval: ensure the net balance change is zero
+    // This means total tokens minted equals total tokens burned/transferred
+    this.checkZeroBalanceChange(forest);
   }
 }
 
@@ -139,7 +137,7 @@ export class Bridge extends SmartContract {
    * @param tokenAddress - Address of the zkZEC token contract
    */
   @method
-  async init(tokenAddress: PublicKey) {
+  async initialize(tokenAddress: PublicKey) {
     super.init();
     
     this.tokenAddress.set(tokenAddress);
@@ -150,8 +148,8 @@ export class Bridge extends SmartContract {
   /**
    * Mint zkZEC tokens
    * 
-   * step 1: simplified version that requires bridge operator signature
-   * step 2+: Will require valid Zcash transaction proof
+   * Phase 1: Simplified version that requires bridge operator signature
+   * Phase 2+: Will require valid Zcash transaction proof
    * 
    * @param recipientAddress - Mina address to receive the zkZEC tokens
    * @param amount - Amount of zkZEC to mint (in smallest units)
@@ -165,9 +163,11 @@ export class Bridge extends SmartContract {
   ) {
     // Phase 1: Verify bridge operator signature
     // In Phase 2+, this will be replaced with Zcash proof verification
-    bridgeOperatorSignature
-      .verify(this.address, amount.toFields())
-      .assertTrue('Invalid bridge operator signature');
+    const isValid = bridgeOperatorSignature.verify(
+      this.address,
+      amount.toFields()
+    );
+    isValid.assertTrue('Invalid bridge operator signature');
 
     // Get current token address
     const tokenAddr = this.tokenAddress.getAndRequireEquals();
@@ -178,11 +178,13 @@ export class Bridge extends SmartContract {
     // Get current total supply from token contract
     const currentSupply = token.totalSupply.getAndRequireEquals();
     
-    // Mint tokens to recipient using the token contract's internal mint
+    // Mint tokens using the token contract's internal mint method
     // This creates an account update that adds tokens to recipient's balance
-    const mintUpdate = this.send({ to: recipientAddress, amount });
-    mintUpdate.body.mayUseToken = AccountUpdate.MayUseToken.InheritFromParent;
-
+    token.internal.mint({
+      address: recipientAddress,
+      amount: amount,
+    });
+    
     // Update token total supply
     token.totalSupply.set(currentSupply.add(amount));
     
@@ -203,20 +205,24 @@ export class Bridge extends SmartContract {
    * This is called when a user wants to unlock ZEC on Zcash.
    * The user burns their zkZEC, and guardians will release ZEC on Zcash.
    * 
+   * @param burnerAddress - Address of the user burning tokens
    * @param amount - Amount of zkZEC to burn
    * @param zcashAddress - Destination Zcash z-address (as Field for simplicity)
    * @param userSignature - Signature from the user authorizing the burn
    */
   @method
   async burn(
+    burnerAddress: PublicKey,
     amount: UInt64,
-    zcashAddress: Field, // Simplified: In production, this would be validated
+    zcashAddress: Field,
     userSignature: Signature
   ) {
     // Verify user signature
-    userSignature
-      .verify(this.sender.getAndRequireSignature(), [amount.value, zcashAddress])
-      .assertTrue('Invalid user signature');
+    const isValid = userSignature.verify(
+      burnerAddress,
+      [amount.value, zcashAddress]
+    );
+    isValid.assertTrue('Invalid user signature');
 
     // Get current token address
     const tokenAddr = this.tokenAddress.getAndRequireEquals();
@@ -227,15 +233,12 @@ export class Bridge extends SmartContract {
     // Get current total supply
     const currentSupply = token.totalSupply.getAndRequireEquals();
     
-    // Burn tokens from sender
-    // This reduces the sender's balance
-    const burnUpdate = this.send({ 
-      to: this.sender.getAndRequireSignature(), 
-      amount: amount.mul(UInt64.from(0)) // Zero out the amount for burn
+    // Burn tokens from the burner's account
+    token.internal.burn({
+      address: burnerAddress,
+      amount: amount,
     });
-    burnUpdate.body.balanceChange = burnUpdate.body.balanceChange.sub(amount.value);
-    burnUpdate.body.mayUseToken = AccountUpdate.MayUseToken.InheritFromParent;
-
+    
     // Update token total supply (decrease)
     token.totalSupply.set(currentSupply.sub(amount));
     
@@ -248,28 +251,12 @@ export class Bridge extends SmartContract {
     this.emitEvent('withdrawal', {
       amount: amount,
       zcashAddress: zcashAddress,
-      minaAddress: this.sender.getAndRequireSignature(),
+      burnerAddress: burnerAddress,
     });
   }
 
-  /**
-   * Query the current state of the bridge
-   * This is useful for monitoring and debugging
-   */
-  @method
-  async getBridgeStats() {
-    const totalMinted = this.totalMinted.getAndRequireEquals();
-    const totalBurned = this.totalBurned.getAndRequireEquals();
-    
-    return {
-      totalMinted,
-      totalBurned,
-      netLocked: totalMinted.sub(totalBurned),
-    };
-  }
-
   // Define events that the bridge emits
-  events = {
+  events: any = {
     minted: {
       recipient: PublicKey,
       amount: UInt64,
@@ -277,7 +264,7 @@ export class Bridge extends SmartContract {
     withdrawal: {
       amount: UInt64,
       zcashAddress: Field,
-      minaAddress: PublicKey,
+      burnerAddress: PublicKey,
     },
   };
 }
