@@ -40,8 +40,6 @@ import {
  * - Uses token symbol "zkZEC" to identify this custom token
  */
 export class zkZECToken extends TokenContract {
-  // Track the total amount of zkZEC tokens in circulation
-  @state(UInt64) totalSupply = State<UInt64>();
 
   /**
    * Deploy the token contract with proper permissions
@@ -76,8 +74,6 @@ export class zkZECToken extends TokenContract {
     // Set the token symbol to "zkZEC"
     this.account.tokenSymbol.set('zkZEC');
     
-    // Initialize total supply to zero
-    this.totalSupply.set(UInt64.from(0));
   }
 
   /**
@@ -88,8 +84,6 @@ export class zkZECToken extends TokenContract {
    */
   @method
   async approveBase(forest: AccountUpdateForest): Promise<void> {
-    // Simple approval: ensure the net balance change is zero
-    // This means total tokens minted equals total tokens burned/transferred
     this.checkZeroBalanceChange(forest);
   }
 }
@@ -110,6 +104,9 @@ export class Bridge extends SmartContract {
   // Reference to the zkZEC token contract
   @state(PublicKey) tokenAddress = State<PublicKey>();
   
+  // Authorized bridge operator public key
+  @state(PublicKey) operatorAddress = State<PublicKey>();
+
   // Track total amount minted (for monitoring/debugging)
   @state(UInt64) totalMinted = State<UInt64>();
   
@@ -137,10 +134,11 @@ export class Bridge extends SmartContract {
    * @param tokenAddress - Address of the zkZEC token contract
    */
   @method
-  async initialize(tokenAddress: PublicKey) {
+  async initialize(tokenAddress: PublicKey, operator: PublicKey) {
     super.init();
     
     this.tokenAddress.set(tokenAddress);
+    this.operatorAddress.set(operator);
     this.totalMinted.set(UInt64.from(0));
     this.totalBurned.set(UInt64.from(0));
   }
@@ -163,40 +161,22 @@ export class Bridge extends SmartContract {
   ) {
     // Phase 1: Verify bridge operator signature
     // In Phase 2+, this will be replaced with Zcash proof verification
-    const isValid = bridgeOperatorSignature.verify(
-      this.address,
-      amount.toFields()
-    );
+    const operator = this.operatorAddress.getAndRequireEquals();
+    const isValid = bridgeOperatorSignature.verify(operator, amount.toFields());
     isValid.assertTrue('Invalid bridge operator signature');
 
-    // Get current token address
     const tokenAddr = this.tokenAddress.getAndRequireEquals();
-    
-    // Get the token contract instance
     const token = new zkZECToken(tokenAddr);
     
-    // Get current total supply from token contract
-    const currentSupply = token.totalSupply.getAndRequireEquals();
-    
-    // Mint tokens using the token contract's internal mint method
-    // This creates an account update that adds tokens to recipient's balance
     token.internal.mint({
       address: recipientAddress,
       amount: amount,
     });
     
-    // Update token total supply
-    token.totalSupply.set(currentSupply.add(amount));
-    
     // Update bridge's minted counter
     const totalMinted = this.totalMinted.getAndRequireEquals();
     this.totalMinted.set(totalMinted.add(amount));
 
-    // Emit event for off-chain monitoring
-    this.emitEvent('minted', {
-      recipient: recipientAddress,
-      amount: amount,
-    });
   }
 
   /**
@@ -224,47 +204,17 @@ export class Bridge extends SmartContract {
     );
     isValid.assertTrue('Invalid user signature');
 
-    // Get current token address
     const tokenAddr = this.tokenAddress.getAndRequireEquals();
-    
-    // Get the token contract instance
     const token = new zkZECToken(tokenAddr);
     
-    // Get current total supply
-    const currentSupply = token.totalSupply.getAndRequireEquals();
-    
-    // Burn tokens from the burner's account
     token.internal.burn({
       address: burnerAddress,
       amount: amount,
     });
     
-    // Update token total supply (decrease)
-    token.totalSupply.set(currentSupply.sub(amount));
-    
     // Update bridge's burned counter
     const totalBurned = this.totalBurned.getAndRequireEquals();
     this.totalBurned.set(totalBurned.add(amount));
 
-    // Emit withdrawal event with ZK proof
-    // Guardians monitor for this event and execute Zcash transaction
-    this.emitEvent('withdrawal', {
-      amount: amount,
-      zcashAddress: zcashAddress,
-      burnerAddress: burnerAddress,
-    });
   }
-
-  // Define events that the bridge emits
-  events: any = {
-    minted: {
-      recipient: PublicKey,
-      amount: UInt64,
-    },
-    withdrawal: {
-      amount: UInt64,
-      zcashAddress: Field,
-      burnerAddress: PublicKey,
-    },
-  };
 }
