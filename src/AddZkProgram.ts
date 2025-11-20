@@ -7,24 +7,20 @@ export const AddZkProgram = ZkProgram({
   methods: {
     init: {
       privateInputs: [],
-      async method(initialState: Field) {
-        return {
-          publicOutput: initialState,
-        };
+      async method(publicInput: Field) {
+        return { publicOutput: publicInput };
       },
     },
 
     update: {
       privateInputs: [SelfProof],
       async method(
-        initialState: Field,
+        publicInput: Field,
         previousProof: SelfProof<Field, Field>
       ) {
         previousProof.verify();
-        initialState.assertEquals(previousProof.publicInput);
-        return {
-          publicOutput: previousProof.publicOutput.add(Field(1)),
-        };
+        publicInput.assertEquals(previousProof.publicOutput);
+        return { publicOutput: previousProof.publicOutput.add(Field(1)) };
       },
     },
   },
