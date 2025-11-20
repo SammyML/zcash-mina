@@ -1,7 +1,7 @@
 {
   "name": "zcash-mina",
   "version": "0.1.0",
-  "description": "Privacy-preserving bridge between Zcash and Mina Protocol using recursive zero-knowledge proofs",
+  "description": "privacy preserving bridge between Zcash and Mina Protocol using recursive zk proofs",
   "author": "Sammy",
   "license": "MIT",
   "keywords": [
@@ -31,7 +31,7 @@
     "interact": "node build/src/test-interaction.js"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.11",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.10.6",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
