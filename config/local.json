@@ -1,0 +1,9 @@
+{
+  "network": "local",
+  "minaUrl": "http://localhost",
+  "zcashUrl": "http://localhost",
+  "deployerKeyPath": "keys/local-deployer.json",
+  "operatorKeyPath": "keys/local-operator.json",
+  "tokenAddress": "B62qnAv3CJjWpdU5WaZfWSNKJzjBrLC1Eg9zfdMeNAMgeCN7zGi1Wgt",
+  "bridgeAddress": "B62qnhRzDmodGnjYAS5SuJeLkDXAmYpHLqGpAsE3dpnzN8w3LQ79eYw"
+}
