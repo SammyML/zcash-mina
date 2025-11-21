@@ -1,7 +1,7 @@
 {
   "name": "zcash-mina",
   "version": "0.1.0",
-  "description": "privacy preserving bridge between Zcash and Mina Protocol using recursive zk proofs",
+  "description": "Privacy-preserving bridge between Zcash and Mina Protocol using recursive zero-knowledge proofs",
   "author": "Sammy",
   "license": "MIT",
   "keywords": [
@@ -21,17 +21,18 @@
   "scripts": {
     "build": "tsc",
     "buildw": "tsc --watch",
-    "test": "node --experimental-vm-modules --experimental-wasm-threads node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules --experimental-wasm-threads node_modules/jest/bin/jest.js --watch",
-    "testw": "node --experimental-vm-modules --experimental-wasm-threads node_modules/jest/bin/jest.js --watchAll",
-    "coverage": "node --experimental-vm-modules --experimental-wasm-threads node_modules/jest/bin/jest.js --coverage",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "testw": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watchAll",
+    "coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "format": "prettier --write --ignore-unknown **/*",
     "lint": "eslint . --ext .ts",
     "prepare": "husky install",
-    "interact": "node build/src/test-interaction.js"
+    "interact": "node build/src/test-interaction.js",
+    "bridge": "node build/src/deployment.js"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.14",
+    "@types/jest": "^29.5.11",
     "@types/node": "^20.10.6",
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
@@ -75,6 +76,11 @@
       "!src/**/index.ts"
     ],
     "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/build/"
+    ],
+    "testTimeout": 120000,
+    "testPathIgnorePatterns": [
       "/node_modules/",
       "/build/"
     ]
