@@ -8,7 +8,7 @@ export const AddZkProgram = ZkProgram({
     init: {
       privateInputs: [],
       async method(publicInput: Field) {
-        return { publicOutput: publicInput };
+        return publicInput;
       },
     },
 
@@ -20,7 +20,7 @@ export const AddZkProgram = ZkProgram({
       ) {
         previousProof.verify();
         publicInput.assertEquals(previousProof.publicOutput);
-        return { publicOutput: previousProof.publicOutput.add(Field(1)) };
+        return previousProof.publicOutput.add(Field(1));
       },
     },
   },
