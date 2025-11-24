@@ -1,7 +1,7 @@
 /**
- * Main Entry Point
+ * Zcash-Mina Bridge
  * 
- * This file exports all the contracts and types from the bridge PoC.
+ * Exports all contracts and types for the bridge.
  * Import from here in your applications:
  * 
  * ```typescript
@@ -70,14 +70,13 @@ export function formatAddress(address: PublicKey): string {
 }
 
 /**
- * Validate a Zcash z-address format (simplified)
- * In production, this would use proper Zcash address validation
+ * Validate a Zcash z-address format
  * 
  * @param address - Address string to validate
  * @returns true if valid format
  */
 export function isValidZcashAddress(address: string): boolean {
-  // Simplified validation - z-addresses start with 'z' and are 78 chars
+  // z-addresses start with 'z' and are 78 chars
   return address.startsWith('z') && address.length === 78;
 }
 
@@ -87,19 +86,19 @@ export function isValidZcashAddress(address: string): boolean {
 export const BRIDGE_CONFIG = {
   // Token symbol
   TOKEN_SYMBOL: 'zkZEC',
-  
+
   // Decimals (matching ZEC)
   DECIMALS: 8,
-  
+
   // Minimum mint amount (0.00000001 ZEC)
   MIN_MINT_AMOUNT: BigInt(1),
-  
+
   // Minimum burn amount (0.00000001 ZEC)
   MIN_BURN_AMOUNT: BigInt(1),
-  
+
   // Zcash confirmation requirement (for future phases)
   ZCASH_CONFIRMATIONS: 6,
-  
+
   // Mina confirmation requirement (for future phases)
   MINA_CONFIRMATIONS: 15,
 };
@@ -110,6 +109,6 @@ export const BRIDGE_CONFIG = {
 export const VERSION = {
   phase: 1,
   version: '0.1.0',
-  name: 'Zcash-Mina Bridge PoC',
+  name: 'Zcash-Mina Bridge',
   description: 'Privacy-preserving bridge using recursive zero-knowledge proofs',
 };

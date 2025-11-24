@@ -12,8 +12,10 @@ async function copyCacheToUI() {
     // Create UI cache directory if it doesn't exist
     try {
       await fs.mkdir(uiPublicCacheDir, { recursive: true });
-    } catch (err: any) {
-      if (err.code !== 'EEXIST') {
+    } catch (err: unknown) {
+      if (err instanceof Error && 'code' in err && err.code === 'EEXIST') {
+        // Directory already exists, ignore
+      } else {
         throw err;
       }
     }
@@ -36,8 +38,8 @@ async function copyCacheToUI() {
     try {
       const cacheJsonData = await fs.readFile(cacheJsonSource);
       await fs.writeFile(cacheJsonDest, cacheJsonData);
-    } catch (err: any) {
-      if (err.code === 'ENOENT') {
+    } catch (err: unknown) {
+      if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
         console.log('cache.json not found, skipping');
       } else {
         throw err;

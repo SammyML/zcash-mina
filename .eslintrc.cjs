@@ -20,4 +20,5 @@ module.exports = {
     'no-constant-condition': 'off',
     'prefer-const': 'off',
   },
+  ignorePatterns: ['build/'],
 };

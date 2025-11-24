@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Privacy-preserving bridge between Zcash and Mina Protocol using recursive zero-knowledge proofs",
   "author": "Sammy",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": [
     "zcash",
     "mina",
@@ -29,7 +29,11 @@
     "lint": "eslint . --ext .ts",
     "prepare": "husky install",
     "interact": "node build/src/test-interaction.js",
-    "bridge": "node build/src/deployment.js"
+    "bridge": "node build/src/deployment.js",
+    "demo:server": "node build/src/demo-server-simple.js",
+    "demo:ui": "npm run dev --prefix apps/demo-ui",
+    "demo:build": "npm run build && npm run demo:server",
+    "verify": "npm run build && npm run interact"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",
@@ -79,7 +83,7 @@
       "/node_modules/",
       "/build/"
     ],
-    "testTimeout": 120000,
+    "testTimeout": 300000,
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/build/"

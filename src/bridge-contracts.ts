@@ -1,15 +1,9 @@
 /**
- * PHASE 1: Mock Bridge & zkZEC Token (Mina-Side)
+ * zkZEC Token and Bridge Contracts
  * 
- * This is a Proof of Concept implementation for a Zcash-Mina bridge.
- * Phase 1 focuses on creating the basic token and bridge infrastructure on Mina.
- * 
- * Components:
- * 1. zkZEC Token Contract - Custom token representing wrapped ZEC
- * 2. Bridge Contract - Handles minting and burning of zkZEC
- * 
- * For Phase 1, mint/burn operations are simplified and require only signatures.
- * Later phases will add proof verification and light client integration.
+ * Core smart contracts for the Zcash-Mina bridge:
+ * - zkZEC: Custom token representing wrapped ZEC
+ * - Bridge: Handles minting and burning with ZK proof verification
  */
 
 import {
@@ -24,9 +18,11 @@ import {
   DeployArgs,
   TokenContract,
   AccountUpdateForest,
-  AccountUpdate,
   Field,
+  MerkleMapWitness,
 } from 'o1js';
+
+import { ZcashProofVerification } from './zcash-verifier.js';
 
 /**
  * zkZEC Token Contract
@@ -70,17 +66,14 @@ export class zkZECToken extends TokenContract {
   @method
   async init() {
     super.init();
-    
+
     // Set the token symbol to "zkZEC"
     this.account.tokenSymbol.set('zkZEC');
-    
+
   }
 
   /**
-   * Required by TokenContract - approves or denies token operations
-   * For Phase 1, we approve all operations from the bridge
-   * 
-   * @param forest - Forest of account updates to approve
+   * Approves or denies token operations
    */
   @method
   async approveBase(forest: AccountUpdateForest): Promise<void> {
@@ -91,27 +84,25 @@ export class zkZECToken extends TokenContract {
 /**
  * Bridge Contract
  * 
- * This contract manages the bridge between Zcash and Mina.
- * It can mint zkZEC tokens (when ZEC is locked on Zcash)
- * and burn zkZEC tokens (when user wants to unlock ZEC on Zcash).
- * 
- * Phase 1 Implementation:
- * - Simplified mint/burn that requires signatures only
- * - No proof verification (added in Phase 2)
- * - No light client integration (added in Phase 3)
+ * Manages the bridge between Zcash and Mina.
+ * Mints zkZEC tokens when ZEC is locked on Zcash.
+ * Burns zkZEC tokens when users want to unlock ZEC on Zcash.
  */
 export class Bridge extends SmartContract {
   // Reference to the zkZEC token contract
   @state(PublicKey) tokenAddress = State<PublicKey>();
-  
+
   // Authorized bridge operator public key
   @state(PublicKey) operatorAddress = State<PublicKey>();
 
   // Track total amount minted (for monitoring/debugging)
   @state(UInt64) totalMinted = State<UInt64>();
-  
+
   // Track total amount burned (for monitoring/debugging)
   @state(UInt64) totalBurned = State<UInt64>();
+
+  // Root of the nullifier Merkle Map (prevents double-spending)
+  @state(Field) nullifierRoot = State<Field>();
 
   /**
    * Deploy the bridge contract with proper permissions
@@ -136,47 +127,70 @@ export class Bridge extends SmartContract {
   @method
   async initialize(tokenAddress: PublicKey, operator: PublicKey) {
     super.init();
-    
+
     this.tokenAddress.set(tokenAddress);
     this.operatorAddress.set(operator);
     this.totalMinted.set(UInt64.from(0));
     this.totalBurned.set(UInt64.from(0));
+    // Initialize empty Merkle Map root
+    // Root of empty MerkleMap()
+    const emptyMapRoot = Field('29554586302995507950896879774049088969377516712869523960093083257574755226328');
+    this.nullifierRoot.set(emptyMapRoot);
   }
 
   /**
-   * Mint zkZEC tokens
+   * Mint zkZEC tokens using a Zcash proof
    * 
-   * Phase 1: Simplified version that requires bridge operator signature
-   * Phase 2+: Will require valid Zcash transaction proof
-   * 
-   * @param recipientAddress - Mina address to receive the zkZEC tokens
-   * @param amount - Amount of zkZEC to mint (in smallest units)
-   * @param bridgeOperatorSignature - Signature from authorized bridge operator
+   * Verifies ZK proof and checks nullifiers to prevent double-spending.
    */
   @method
   async mint(
     recipientAddress: PublicKey,
-    amount: UInt64,
-    bridgeOperatorSignature: Signature
+    proof: ZcashProofVerification,
+    nullifierWitness1: MerkleMapWitness,
+    nullifierWitness2: MerkleMapWitness
   ) {
-    // Phase 1: Verify bridge operator signature
-    // In Phase 2+, this will be replaced with Zcash proof verification
-    const operator = this.operatorAddress.getAndRequireEquals();
-    const isValid = bridgeOperatorSignature.verify(operator, amount.toFields());
-    isValid.assertTrue('Invalid bridge operator signature');
+    // 1. Verify the ZK proof
+    // The proof public input is the transaction hash.
+    // We verify that the proof is valid for the claimed output.
+    // We verify that the proof is valid for the claimed output.
+    const output = proof.publicOutput;
+    proof.verify();
 
+    // 2. Prevent Double-Spending (Nullifier Check)
+    const currentRoot = this.nullifierRoot.getAndRequireEquals();
+
+    // Check nullifier 1
+    const [root1, key1] = nullifierWitness1.computeRootAndKey(Field(0)); // 0 = not spent
+    root1.assertEquals(currentRoot, 'Nullifier 1 witness invalid');
+    key1.assertEquals(output.nullifier1, 'Nullifier 1 key mismatch');
+
+    // Update root to mark nullifier 1 as spent (set to 1)
+    const [newRoot1] = nullifierWitness1.computeRootAndKey(Field(1));
+
+    // Check nullifier 2 (against new root)
+    const [root2, key2] = nullifierWitness2.computeRootAndKey(Field(0));
+    root2.assertEquals(newRoot1, 'Nullifier 2 witness invalid');
+    key2.assertEquals(output.nullifier2, 'Nullifier 2 key mismatch');
+
+    // Update root to mark nullifier 2 as spent
+    const [finalRoot] = nullifierWitness2.computeRootAndKey(Field(1));
+
+    // Save new root
+    this.nullifierRoot.set(finalRoot);
+
+    // 3. Mint tokens
     const tokenAddr = this.tokenAddress.getAndRequireEquals();
     const token = new zkZECToken(tokenAddr);
-    
+
     token.internal.mint({
       address: recipientAddress,
-      amount: amount,
+      amount: output.amount,
     });
-    
-    // Update bridge's minted counter
-    const totalMinted = this.totalMinted.getAndRequireEquals();
-    this.totalMinted.set(totalMinted.add(amount));
 
+    // 4. Update stats
+    const totalMinted = this.totalMinted.getAndRequireEquals();
+    this.totalMinted.set(totalMinted.add(output.amount));
   }
 
   /**
@@ -206,12 +220,12 @@ export class Bridge extends SmartContract {
 
     const tokenAddr = this.tokenAddress.getAndRequireEquals();
     const token = new zkZECToken(tokenAddr);
-    
+
     token.internal.burn({
       address: burnerAddress,
       amount: amount,
     });
-    
+
     // Update bridge's burned counter
     const totalBurned = this.totalBurned.getAndRequireEquals();
     this.totalBurned.set(totalBurned.add(amount));

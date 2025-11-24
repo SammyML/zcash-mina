@@ -1,0 +1,12 @@
+{
+    "network": "devnet",
+    "minaUrl": "https://api.minascan.io/node/devnet/v1/graphql",
+    "deployerKeyPath": "keys/devnet-deployer.json",
+    "operatorKeyPath": "keys/devnet-operator.json",
+    "zcashSource": {
+        "type": "mock",
+        "url": "",
+        "username": "",
+        "password": ""
+    }
+}
