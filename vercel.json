@@ -1,0 +1,6 @@
+{
+    "buildCommand": "cd apps/demo-ui && npm install && npm run build",
+    "outputDirectory": "apps/demo-ui/dist",
+    "framework": "vite",
+    "installCommand": "npm install"
+}

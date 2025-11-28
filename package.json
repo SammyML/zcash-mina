@@ -30,7 +30,7 @@
     "prepare": "husky install",
     "interact": "node build/src/test-interaction.js",
     "bridge": "node build/src/deployment.js",
-    "demo:server": "node build/src/demo-server-simple.js",
+    "demo:server": "node build/src/demo-server.js",
     "demo:ui": "npm run dev --prefix apps/demo-ui",
     "demo:build": "npm run build && npm run demo:server",
     "verify": "npm run build && npm run interact"

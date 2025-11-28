@@ -438,11 +438,16 @@ function truncate(value?: string) {
 
 function formatAmount(value?: string) {
   if (!value) return '—';
-  const bigValue = BigInt(value);
-  const whole = bigValue / ZATOSHI_SCALE_BIG;
-  const fraction = bigValue % ZATOSHI_SCALE_BIG;
-  const decimals = fraction.toString().padStart(8, '0').slice(0, 4);
-  return `${whole.toString()}.${decimals}`;
+  try {
+    const bigValue = BigInt(value);
+    const whole = bigValue / ZATOSHI_SCALE_BIG;
+    const fraction = bigValue % ZATOSHI_SCALE_BIG;
+    const decimals = fraction.toString().padStart(8, '0').slice(0, 4);
+    return `${whole.toString()}.${decimals}`;
+  } catch (e) {
+    console.error('Error formatting amount:', value, e);
+    return 'Error';
+  }
 }
 
 const styles: Record<string, CSSProperties> = {

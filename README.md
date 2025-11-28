@@ -1,4 +1,4 @@
-# Zcash-Mina Bridge (proof of concept for zypherpunk hackathon)
+# Zcash-Mina Bridge 
 
 > **Hackathon Submission**: Working POC of a Privacy-Preserving Bridge Between Zcash and Mina
 
@@ -18,7 +18,9 @@ cd apps/demo-ui && npm install && npm run dev    # Terminal 2: Start UI
 
 Open **http://localhost:5173** and try minting/burning zkZEC! 
 
-📖 **Full demo guide**: See [DEMO_GUIDE.md](DEMO_GUIDE.md) for detailed walkthrough.
+> **Update**: The "Invalid nullifier witness" error has been resolved. The demo server now includes robust state synchronization checks to ensure smooth minting operations.
+
+📖 **Full demo guide**: See [walkthrough.md](walkthrough.md) for detailed walkthrough.
 
 ---
 
@@ -27,6 +29,7 @@ Open **http://localhost:5173** and try minting/burning zkZEC!
 - **Authentic ZK Implementation** - Real recursive proofs, not mocked  
 - **Privacy Preservation** - Zcash nullifier tracking prevents double-spends  
 - **Mina's Unique Features** - Recursive ZkPrograms for constant-size proofs  
+- **Zcash Testnet Integration** - Fetches and parses real Zcash testnet transactions
 - **Working Code** - Full mint/burn flow works end-to-end  
 - **Easy to Demo** - Browser-based UI, no complex setup  
 
@@ -44,15 +47,18 @@ Privacy preserving asset bridge that lets shielded Zcash value flow into Mina's 
 - **Guardians**: Off-chain operations monitoring events and releasing ZEC
 - **Mina Users**: Hold/spend zkZEC in zkApps
 
-## Repos
-| Path | use |
+## Project Structure
+| Path | Description |
 | --- | --- |
-| `src/bridge-contracts.ts` | Phase‑1 `zkZECToken` + simple bridge. |
-| `src/zcash-verifier.ts` | Recursive ZkProgram for shielded proof batches. |
-| `src/light-client.ts` | Recursive light client for Zcash headers/transactions. |
-| `src/bridge.ts` | bridge with light-client inputs, nullifier sets, processed tx root, withdrawal queue. |
-| `src/test-interaction.ts` | demo of the initial flow (deploy -> mint -> burn -> stats). |
-| `src/test.ts` | Jest-style test harness covering all phases (compiles; Windows Node flags still pending for runtime). |
+| `src/bridge-contracts.ts` | zkZEC token contract |
+| `src/bridge.ts` | BridgeV3 contract with full verification |
+| `src/zcash-verifier.ts` | Recursive ZkProgram for Zcash proof verification |
+| `src/light-client.ts` | Recursive light client for Zcash blockchain |
+| `src/zcash-rpc.ts` | **NEW:** RPC client for Zcash testnet integration |
+| `src/demo-server.ts` | Demo server with mock/testnet modes |
+| `src/test-interaction.ts` | Interactive demo script |
+| `apps/demo-ui` | React UI for the bridge |
+| `DEPLOYMENT.md` | **NEW:** Deployment guide for Railway + Vercel |
 
 ## Quickstart
 
@@ -63,6 +69,31 @@ npm run interact     # deploy/mint/burn on LocalBlockchain
 ```
 
 The interaction script logs each step (accounts, deploys, mint/burn, bridge stats).
+
+## Zcash Testnet Integration
+
+The bridge supports two modes:
+
+### Mock Mode (Default)
+```bash
+export ZCASH_MODE=mock
+npm run demo:server
+```
+Generates mock Zcash proofs for quick testing.
+
+### Testnet Mode
+```bash
+export ZCASH_MODE=testnet
+export ZCASH_RPC_URL=https://testnet.zcash.com
+npm run demo:server
+```
+Fetches real Zcash testnet transactions and parses them into proofs.
+
+**Features:**
+- Real transaction fetching via RPC
+- Automatic fallback to mock mode if RPC fails
+- Parses raw Zcash transaction bytes
+- Extracts nullifiers and commitments from real data
 
 ## CLI Commands
 
@@ -111,7 +142,7 @@ npm run bridge -- stats devnet
 
 ## Demo Dashboard
 
-We ship a small test for the PoC so reviewers can test the bridge without touching the CLI:
+CLI:
 
 ```
 npm install
@@ -141,6 +172,46 @@ All demo actions hit the same TypeScript contracts compiled with `o1js`, so you 
 3. `BridgeV3.mintWithFullVerification` derives the mint amount from the proof and enforces nullifier/tx-set membership before minting, keeping double spends out of the Mina side.
 4. The light client path supports JSON-RPC fed Zcash headers so you can point the PoC at either a local zebra/zcashd node or the default deterministic mock generator.
 5. The React dashboard + REST shim provide the “easily demoable” UX requested for the hackathon without compromising on the open-source requirement.
+
+## Deployment
+
+### Quick Deploy
+
+Deploy the bridge to make it accessible for hackathon judges:
+
+**Backend (Railway):**
+1. Push code to GitHub
+2. Create new project on https://railway.app
+3. Deploy from GitHub repo
+4. Set environment variables: `NODE_VERSION=18`, `DEMO_PORT=8787`, `ZCASH_MODE=mock`
+5. Generate domain
+
+**Frontend (Vercel):**
+1. Create new project on https://vercel.com
+2. Set root directory to `apps/demo-ui`
+3. Add environment variable: `VITE_API_URL=<railway-backend-url>`
+4. Deploy
+
+📖 **Full deployment guide**: See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
+
+## Latest Features
+
+### Zcash Testnet Integration (New!)
+- Fetches real Zcash testnet transactions via RPC
+- Parses raw transaction bytes
+- Extracts nullifiers and commitments from real blockchain data
+- Automatic fallback to mock mode for reliability
+
+### State Synchronization Fix
+- Resolved "Invalid nullifier witness" error
+- Added strict off-chain/on-chain state verification
+- Enhanced logging for debugging
+
+### Deployment Ready
+- Railway configuration for backend
+- Vercel configuration for frontend
+- Environment-based configuration
+- Production-ready error handling
 
 ## License
 
