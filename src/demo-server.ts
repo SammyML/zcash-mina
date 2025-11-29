@@ -10,6 +10,7 @@ import {
   fetchAccount,
   MerkleMap,
   UInt32,
+  Bool,
 } from 'o1js';
 
 import { zkZECToken } from './bridge-contracts.js';
@@ -17,6 +18,8 @@ import { BridgeV3 } from './bridge.js';
 import {
   ZcashVerifier,
   ZcashProofHelper,
+  MintOutput,
+  ZcashProofVerification,
 } from './zcash-verifier.js';
 import { MerkleBranch, LightClient } from './light-client.js';
 import { createTestnetClient, ZcashRPC } from './zcash-rpc.js';
@@ -220,7 +223,7 @@ async function buildStatus(ctx: DemoContext) {
 
   // Note: totalMinted and totalBurned are no longer on-chain state to save space
   // We track them in the DemoContext for display purposes
-  // We track them in the DemoContext for display purposes
+
   const totalMinted = ctx.totalMinted.toString();
   const totalBurned = ctx.totalBurned.toString();
   const netLocked = (ctx.totalMinted - ctx.totalBurned).toString();
@@ -354,8 +357,42 @@ async function handleMint(
     pathLength: UInt32.from(32),
   });
 
-  // 3. Create Recursive Proof (Mocked)
-  const dummyProof = await ZcashVerifier.verifySingle(txHash, mockProof);
+  // 3. Create Recursive Proof
+  // On Railway (no compilation), we manually create a mock proof
+  // Locally (with compilation), we use the actual ZkProgram
+  const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined ||
+    process.env.SKIP_ZKPROGRAM_COMPILE === 'true';
+
+  let dummyProof: ZcashProofVerification;
+
+  if (isRailway) {
+    // Railway: Create mock proof manually (no compilation available)
+    console.log('Creating mock ZcashProofVerification (deployment mode)...');
+    const mintOutput = new MintOutput({
+      amount: amountUInt64,
+      nullifier1: nullifier1,
+      nullifier2: nullifier2,
+      txHash: txHash,
+    });
+
+    // Create a dummy proof that satisfies the type system
+    // In mock mode (proofsEnabled: false), the proof verification is skipped
+    dummyProof = {
+      publicInput: txHash,
+      publicOutput: mintOutput,
+      maxProofsVerified: 0,
+      proof: null as any, // Mock mode doesn't verify proofs
+      shouldVerify: Bool(false),
+      publicFields: () => ({ input: [txHash], output: [] }),
+      verify: () => { },
+      verifyIf: () => { },
+      toJSON: () => ({ publicInput: [], publicOutput: [], maxProofsVerified: 0, proof: '' }),
+    } as ZcashProofVerification;
+  } else {
+    // Local: Use actual ZkProgram (compilation available)
+    console.log('Creating ZcashProofVerification via ZkProgram...');
+    dummyProof = await ZcashVerifier.verifySingle(txHash, mockProof);
+  }
 
   // 4. Execute Transaction
   const tx = await Mina.transaction(ctx.deployer.publicKey, async () => {
