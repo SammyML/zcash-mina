@@ -47,7 +47,7 @@ type DemoContext = {
 const PORT = Number(process.env.DEMO_PORT ?? 8787);
 const ZCASH_MODE = process.env.ZCASH_MODE || 'mock'; // 'mock' or 'testnet'
 
-// Global state for singleton pattern
+// Global state
 let contextPromise: Promise<DemoContext> | null = null;
 let isInitializing = false;
 let initializationError: unknown = null;
@@ -89,10 +89,18 @@ async function bootstrapDemo(): Promise<DemoContext> {
     const nullifierMap = new MerkleMap();
     const processedTxMap = new MerkleMap();
 
-    // Compile ZkPrograms first (dependencies for smart contracts)
-    console.log('Compiling ZkPrograms...');
-    await ZcashVerifier.compile();
-    await LightClient.compile();
+    // Conditional ZkProgram compilation
+    // Skip on Railway (limited memory) but compile locally
+    const skipCompilation = process.env.RAILWAY_ENVIRONMENT !== undefined ||
+      process.env.SKIP_ZKPROGRAM_COMPILE === 'true';
+
+    if (skipCompilation) {
+      console.log('Skipping ZkProgram compilation (deployment environment)...');
+    } else {
+      console.log('Compiling ZkPrograms...');
+      await ZcashVerifier.compile();
+      await LightClient.compile();
+    }
 
     // Then compile smart contracts
     console.log('Compiling smart contracts...');

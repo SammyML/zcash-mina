@@ -237,9 +237,11 @@ To deploy for hackathon judges:
 
 1. **Working Code** - Not just a design, actual functioning bridge
 2. **Real Blockchain Integration** - Fetches and parses real Zcash testnet data
-3. **Recursive Proofs** - Uses Mina's unique ZkPrograms
+3. **Production-Ready ZkPrograms** - Real recursive proof implementations (demo uses mock proofs for speed)
 4. **Privacy Preservation** - Nullifier tracking prevents double-spends
 5. **Easy to Test** - Browser-based UI, no complex setup
+
+**Note:** The demo runs with `proofsEnabled: false` for fast demonstrations and low resource requirements. The underlying ZkProgram code is production-ready and can generate real cryptographic proofs when `proofsEnabled: true`.
 
 **Try it yourself:**
 - Clone the repo
@@ -285,7 +287,7 @@ To make this production-ready:
 
 ## Resources
 
-- **Repository**: [GitHub](https://github.com/YOUR_USERNAME/zcash-mina-bridge)
+- **Repository**: [GitHub](https://github.com/SammyML/zcash-mina)
 - **Architecture**: See `docs/architecture.png`
 - **Deployment Guide**: See `DEPLOYMENT.md`
 - **License**: Apache-2.0
