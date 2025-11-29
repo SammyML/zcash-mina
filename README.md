@@ -1,8 +1,8 @@
 # Zcash-Mina Bridge 
 
-> **Hackathon Submission**: Working POC of a Privacy-Preserving Bridge Between Zcash and Mina
+> **Hackathon Submission**: a POC of a PrivacyPreserving Bridge Between Zcash and Mina
 
-## Quick Demo (Start Here!)
+## Quick Demo
 
 **Want to see it in action? Run the demo in 3 commands:**
 
@@ -17,8 +17,6 @@ cd apps/demo-ui && npm install && npm run dev    # Terminal 2: Start UI
 ```
 
 Open **http://localhost:5173** and try minting/burning zkZEC
-
-> **Update**: The "Invalid nullifier witness" error has been resolved. The demo server now includes robust state synchronization checks to ensure smooth minting operations.
 
 **Full demo guide**: See [walkthrough.md](walkthrough.md) for detailed walkthrough.
 
@@ -37,7 +35,7 @@ Open **http://localhost:5173** and try minting/burning zkZEC
 
 ![Zcash-Mina Bridge Architecture](docs/architecture.png)
 
-Privacy preserving asset bridge that lets shielded Zcash value flow into Mina's zk-smart-contract ecosystem. The diagram above shows the complete flow of the bridge system, including:
+Privacy preserving asset bridge that lets shielded Zcash value flow into Mina's zk smartcontract ecosystem. The diagram above shows the complete flow of the bridge system, including:
 
 - **Zcash Chain**: Shielded transactions with blocks
 - **ZcashVerifier**: Recursive ZkProgram for proof verification (verifySingle/verifyBatch)
@@ -58,7 +56,6 @@ Privacy preserving asset bridge that lets shielded Zcash value flow into Mina's 
 | `src/demo-server.ts` | Demo server with mock/testnet modes |
 | `src/test-interaction.ts` | Interactive demo script |
 | `apps/demo-ui` | React UI for the bridge |
-| `DEPLOYMENT.md` | **NEW:** Deployment guide for Railway + Vercel |
 
 ## Quickstart
 
