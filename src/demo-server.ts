@@ -90,12 +90,15 @@ async function bootstrapDemo(): Promise<DemoContext> {
     const processedTxMap = new MerkleMap();
 
     // Conditional ZkProgram compilation
-    // Skip on Railway (limited memory) but compile locally
-    const skipCompilation = process.env.RAILWAY_ENVIRONMENT !== undefined ||
+    // BridgeV3 depends on LightClient, so we must compile it
+    // But we can skip ZcashVerifier to save memory on Railway
+    const skipZcashVerifier = process.env.RAILWAY_ENVIRONMENT !== undefined ||
       process.env.SKIP_ZKPROGRAM_COMPILE === 'true';
 
-    if (skipCompilation) {
-      console.log('Skipping ZkProgram compilation (deployment environment)...');
+    if (skipZcashVerifier) {
+      console.log('Skipping ZcashVerifier compilation (deployment environment)...');
+      console.log('Compiling LightClient (required by BridgeV3)...');
+      await LightClient.compile();
     } else {
       console.log('Compiling ZkPrograms...');
       await ZcashVerifier.compile();
