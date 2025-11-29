@@ -45,11 +45,14 @@ export default function App() {
   const [mintAmountInput, setMintAmountInput] = useState('0.5');
   const [burnAmountInput, setBurnAmountInput] = useState('0.25');
 
+  // Get API URL from environment variables (Vercel) or default to relative path (local proxy)
+  const API_URL = import.meta.env.VITE_API_URL || '';
+
   const refresh = useCallback(async () => {
     setRefreshLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/status');
+      const response = await fetch(`${API_URL}/api/status`);
       if (!response.ok) {
         throw new Error(`Status request failed (${response.status})`);
       }
@@ -70,7 +73,7 @@ export default function App() {
     setError(null);
     setMintLoading(true);
     try {
-      const response = await fetch('/api/mint', {
+      const response = await fetch(`${API_URL}/api/mint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(mintForm),
@@ -92,7 +95,7 @@ export default function App() {
     setError(null);
     setBurnLoading(true);
     try {
-      const response = await fetch('/api/burn', {
+      const response = await fetch(`${API_URL}/api/burn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(burnForm),
@@ -114,7 +117,7 @@ export default function App() {
     setError(null);
     setRefreshLoading(true);
     try {
-      const response = await fetch('/api/reset', { method: 'POST' });
+      const response = await fetch(`${API_URL}/api/reset`, { method: 'POST' });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.error ?? 'Reset failed');
