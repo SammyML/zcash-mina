@@ -81,16 +81,24 @@ npm run demo:server
 ```
 Generates mock Zcash proofs for quick testing.
 
-### Testnet Mode
+### Testnet Mode (Optional)
+
+**Note:** Zcash testnet integration requires an RPC endpoint. Public endpoints require API keys.
+
+**To use testnet mode:**
+1. Get a free API key from [Tatum.io](https://tatum.io) or [GetBlock.io](https://getblock.io)
+2. Set your RPC endpoint:
+
 ```bash
 export ZCASH_MODE=testnet
-export ZCASH_RPC_URL=https://testnet.zcash.com
+export ZCASH_RPC_URL=YOUR_RPC_ENDPOINT_HERE
 npm run demo:server
 ```
-Fetches real Zcash testnet transactions and parses them into proofs.
+
+**The demo works perfectly in mock mode without testnet access.**
 
 **Features:**
-- Real transaction fetching via RPC
+- Real transaction fetching via RPC (when configured)
 - Automatic fallback to mock mode if RPC fails
 - Parses raw Zcash transaction bytes
 - Extracts nullifiers and commitments from real data
@@ -134,14 +142,14 @@ The dashboard lets you:
 - Mint zkZEC into the bridge with one click (server signs with the operator key).
 - Burn zkZEC into a withdrawal request tied to a Sapling/Unified address string.
 - Reset the sandbox to replay the full flow.
-- The UI targets the Phase-1 `Bridge` contract on Mina’s `LocalBlockchain`, so every click maps to the same operator-signed mint/burn transactions used in `src/test-interaction.ts`.
+- The UI targets the `Bridge` contract on Mina’s `LocalBlockchain`, so every click maps to the same operator-signed mint/burn transactions used in `src/test-interaction.ts`.
 
-**Note:** The demo runs with `proofsEnabled: false` for speed and resource efficiency. The underlying ZkPrograms are production-ready and can generate real proofs when `proofsEnabled: true`.
+**Note:** The demo runs with `proofsEnabled: false` for speed and resource efficiency. The underlying ZkPrograms are production ready and can generate real proofs when `proofsEnabled: true`.
 
 ## Technical Details
 
 **Proof System:**
-- Production-ready recursive ZkPrograms
+- Production ready recursive ZkPrograms
 - Demo uses `proofsEnabled: false` for speed (mock proofs)
 - Set `proofsEnabled: true` for real cryptographic proofs
 - Batch verification for efficiency
@@ -150,7 +158,7 @@ The dashboard lets you:
 **The demo uses mock proofs for:**
 - Fast demonstrations (instant vs 30-60s per transaction)
 - Low resource requirements (1GB vs 4-8GB RAM)
-- Deployment on free hosting tiers
+- Deployment on free hosting tiers( ran out of memory using railway free tier)
 
 **The code supports real proofs:**
 - Full ZkProgram implementations in `src/zcash-verifier.ts` and `src/light-client.ts`
