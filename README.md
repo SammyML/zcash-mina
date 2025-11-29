@@ -1,6 +1,6 @@
 # Zcash-Mina Bridge 
 
-> **Hackathon Submission**: a POC of a PrivacyPreserving Bridge Between Zcash and Mina
+> POC demostrating a Privacy Preserving Bridge Between Zcash and Mina
 
 ## Quick Demo
 
