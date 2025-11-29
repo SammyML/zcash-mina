@@ -20,7 +20,7 @@ Open **http://localhost:5173** and try minting/burning zkZEC
 
 > **Update**: The "Invalid nullifier witness" error has been resolved. The demo server now includes robust state synchronization checks to ensure smooth minting operations.
 
-📖 **Full demo guide**: See [walkthrough.md](walkthrough.md) for detailed walkthrough.
+**Full demo guide**: See [walkthrough.md](walkthrough.md) for detailed walkthrough.
 
 ---
 
@@ -163,47 +163,7 @@ The dashboard lets you:
 2. The recursive `ZcashVerifier` now hashes raw transaction bytes into deterministic nullifiers, commitments, and the minted amount, preventing callers from forging arbitrary values.
 3. `BridgeV3.mintWithFullVerification` derives the mint amount from the proof and enforces nullifier/tx-set membership before minting, keeping double spends out of the Mina side.
 4. The light client path supports JSON-RPC fed Zcash headers so you can point the PoC at either a local zebra/zcashd node or the default deterministic mock generator.
-5. The React dashboard + REST shim provide the “easily demoable” UX requested for the hackathon without compromising on the open-source requirement.
-
-## Deployment
-
-### Quick Deploy
-
-Deploy the bridge to make it accessible for hackathon judges:
-
-**Backend (Railway):**
-1. Push code to GitHub
-2. Create new project on https://railway.app
-3. Deploy from GitHub repo
-4. Set environment variables: `NODE_VERSION=18`, `DEMO_PORT=8787`, `ZCASH_MODE=mock`
-5. Generate domain
-
-**Frontend (Vercel):**
-1. Create new project on https://vercel.com
-2. Set root directory to `apps/demo-ui`
-3. Add environment variable: `VITE_API_URL=<railway-backend-url>`
-4. Deploy
-
-📖 **Full deployment guide**: See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
-
-## Latest Features
-
-### Zcash Testnet Integration (New!)
-- Fetches real Zcash testnet transactions via RPC
-- Parses raw transaction bytes
-- Extracts nullifiers and commitments from real blockchain data
-- Automatic fallback to mock mode for reliability
-
-### State Synchronization Fix
-- Resolved "Invalid nullifier witness" error
-- Added strict off-chain/on-chain state verification
-- Enhanced logging for debugging
-
-### Deployment Ready
-- Railway configuration for backend
-- Vercel configuration for frontend
-- Environment-based configuration
-- Production-ready error handling
+5. The React dashboard + REST shim provide the “easily demoable” UX 
 
 ## License
 
