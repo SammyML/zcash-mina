@@ -112,37 +112,10 @@ npm run bridge -- stats devnet
 - `deploy devnet` (and other remote networks) compiles `Bridge`, the recursive verifier, and the light client; make sure `config/<network>.json` plus key files exist.
 - The `mint`, `burn`, `update`, and `stats` commands are disabled on the mock local network because that chain is reset each run. Use `npm run interact` locally instead.
 
-### Configuration (`config/<network>.json`)
-
-```jsonc
-{
-  "network": "devnet",
-  "minaUrl": "https://api.minascan.io/node/berkeley/v1/graphql",
-  "deployerKeyPath": "keys/devnet-deployer.json",
-  "operatorKeyPath": "keys/devnet-operator.json",
-  "zcashSource": {
-    "type": "zcashd",
-    "url": "http://127.0.0.1:18232",
-    "username": "rpcuser",
-    "password": "rpcpass"
-  }
-}
-```
-
-- `zcashSource.type = "zcashd"` enables real JSON-RPC calls (`getrawtransaction`, `getblockhash`, `getblockheader`) against a full node (Zebra or zcashd).  
-- `zcashSource.type = "mock"` keeps the lightweight deterministic byte parser that powers the local demo.
-- The mint CLI command no longer accepts an amount. The bridge derives the minted value directly from the verified proof bytes, rejecting tampered inputs.
-
-## Tests
-
-- `npm test` runs lightweight checks and skips the heavy recursive-proof suite.
-- `RUN_FULL_TESTS=true npm test` executes the entire suite (expect multi-minute runs and high CPU usage).
-
-
 
 ## Demo Dashboard
 
-Run the demo locally:
+CLI:
 
 ```
 npm install
