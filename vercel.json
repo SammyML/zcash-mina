@@ -1,5 +1,3 @@
 {
-    "outputDirectory": "apps/demo-ui/dist",
-    "framework": "vite",
-    "installCommand": "npm install"
+    "framework": "vite"
 }
