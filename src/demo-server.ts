@@ -89,26 +89,28 @@ async function bootstrapDemo(): Promise<DemoContext> {
     const nullifierMap = new MerkleMap();
     const processedTxMap = new MerkleMap();
 
-    // Conditional ZkProgram compilation
-    // BridgeV3 depends on LightClient, so we must compile it
-    // But we can skip ZcashVerifier to save memory on Railway
-    const skipZcashVerifier = process.env.RAILWAY_ENVIRONMENT !== undefined ||
+    // Conditional Compilation
+    // On Railway (limited memory), we MUST skip ALL compilation
+    // BridgeV3 depends on ZcashVerifier, so we can't compile one without the other
+    // Fortunately, LocalBlockchain({ proofsEnabled: false }) works without compilation
+    const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined ||
       process.env.SKIP_ZKPROGRAM_COMPILE === 'true';
 
-    if (skipZcashVerifier) {
-      console.log('Skipping ZcashVerifier compilation (deployment environment)...');
-      console.log('Compiling LightClient (required by BridgeV3)...');
-      await LightClient.compile();
+    if (isRailway) {
+      console.log('Running in Deployment Mode (Railway):');
+      console.log('- Skipping ZkProgram compilation (saves memory)');
+      console.log('- Skipping Smart Contract compilation (saves memory)');
+      console.log('- Using mock proofs (proofsEnabled: false)');
     } else {
-      console.log('Compiling ZkPrograms...');
+      console.log('Running in Local Mode:');
+      console.log('- Compiling ZkPrograms...');
       await ZcashVerifier.compile();
       await LightClient.compile();
-    }
 
-    // Then compile smart contracts
-    console.log('Compiling smart contracts...');
-    await zkZECToken.compile();
-    await BridgeV3.compile();
+      console.log('- Compiling Smart Contracts...');
+      await zkZECToken.compile();
+      await BridgeV3.compile();
+    }
 
     const tokenKey = PrivateKey.random();
     const token = new zkZECToken(tokenKey.toPublicKey());
