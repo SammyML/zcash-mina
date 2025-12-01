@@ -103,7 +103,7 @@ export class ZcashShieldedProof extends Struct({
   // Positive = entering pool (minting), Negative = leaving pool (burning)
   valueBalance: UInt64,
 
-  // Simplified proof representation (in production, this would be Groth16 proof)
+  // Simplified proof representation (when the bridge is live, this would be Groth16 proof)
   proofA: Field, // Groth16 A element
   proofB: Field, // Groth16 B element  
   proofC: Field, // Groth16 C element
@@ -126,7 +126,7 @@ export class ZcashShieldedProof extends Struct({
     const vc2Valid = this.valueCommitment2.isValid();
 
     // 4. Verify value balance is within range
-    // In production: check -MAX_MONEY <= valueBalance <= MAX_MONEY
+    // Live bridge: check -MAX_MONEY <= valueBalance <= MAX_MONEY
     const valueBalanceValid = this.valueBalance
       .greaterThanOrEqual(UInt64.from(0));
 

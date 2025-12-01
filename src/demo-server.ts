@@ -45,6 +45,8 @@ type DemoContext = {
   // Statistics tracking (since removed from on-chain state)
   totalMinted: bigint;
   totalBurned: bigint;
+  // User balance tracking (for mock mode balance checks)
+  userBalances: Map<string, bigint>;
 };
 
 const PORT = Number(process.env.DEMO_PORT ?? 8787);
@@ -106,11 +108,11 @@ async function bootstrapDemo(): Promise<DemoContext> {
       console.log('- Using mock proofs (proofsEnabled: false)');
     } else {
       console.log('Running in Local Mode:');
-      console.log('- Compiling ZkPrograms...');
+      console.log('- Compiling ZkPrograms');
       await ZcashVerifier.compile();
       await LightClient.compile();
 
-      console.log('- Compiling Smart Contracts...');
+      console.log('- Compiling Smart Contracts');
       await zkZECToken.compile();
       await BridgeV3.compile();
     }
@@ -154,6 +156,7 @@ async function bootstrapDemo(): Promise<DemoContext> {
       processedTxMap,
       totalMinted: 0n,
       totalBurned: 0n,
+      userBalances: new Map(), // Track balances per user address
     };
 
     isInitializing = false;
@@ -221,12 +224,12 @@ async function buildStatus(ctx: DemoContext) {
   // Fetch latest state
   await fetchAccount({ publicKey: ctx.bridge.address });
 
-  // Note: totalMinted and totalBurned are no longer on-chain state to save space
-  // We track them in the DemoContext for display purposes
-
-  const totalMinted = ctx.totalMinted.toString();
-  const totalBurned = ctx.totalBurned.toString();
-  const netLocked = (ctx.totalMinted - ctx.totalBurned).toString();
+  // Read totalMinted and totalBurned from on-chain state
+  const totalMinted = ctx.bridge.totalMinted.get().toString();
+  const totalBurned = ctx.bridge.totalBurned.get().toString();
+  const totalMintedBigInt = ctx.bridge.totalMinted.get().toBigInt();
+  const totalBurnedBigInt = ctx.bridge.totalBurned.get().toBigInt();
+  const netLocked = (totalMintedBigInt - totalBurnedBigInt).toString();
   const isPaused = ctx.bridge.isPaused.get();
   const nullifierRoot = ctx.bridge.nullifierSetRoot.get();
 
@@ -415,18 +418,23 @@ async function handleMint(
   // IMPORTANT: Only update the first nullifier to match the on-chain contract logic.
   // The contract only updates the root with nullifier1 due to the complexity of
   // chaining multiple Merkle updates in a single transaction.
-  // In production, you'd need to either:
+  //  when the bridge is live, users need to either:
   // 1. Handle both nullifiers properly with sequential witnesses, or
   // 2. Use a different approach like batching nullifiers
   ctx.nullifierMap.set(nullifier1, Field(1));
   // ctx.nullifierMap.set(nullifier2, Field(1)); // Commented out to match on-chain logic
   ctx.processedTxMap.set(txHash, Field(1));
 
-  // Update statistics
+  // Update off-chain balance tracking
+  const recipientAddr = recipient.publicKey.toBase58();
+  const currentBalance = ctx.userBalances.get(recipientAddr) || 0n;
+  ctx.userBalances.set(recipientAddr, currentBalance + amountUInt64.toBigInt());
   ctx.totalMinted += amountUInt64.toBigInt();
 
   console.log('Mint: Updated Map Root:', ctx.nullifierMap.getRoot().toString());
-  console.log('Mint: Total Minted:', (Number(ctx.totalMinted) / 100_000_000).toFixed(8), 'ZEC');
+  console.log(`Mint: Minted ${(Number(amountUInt64.toBigInt()) / 100_000_000).toFixed(8)} ZEC to ${recipient.alias}`);
+  console.log(`Mint: Total Minted: ${(Number(ctx.totalMinted) / 100_000_000).toFixed(8)} ZEC`);
+  console.log('Mint: Transaction completed successfully');
 }
 
 async function handleBurn(
@@ -445,8 +453,12 @@ async function handleBurn(
   const amount = amountToUInt64(payload.amount);
   const zcashField = stringToField(payload.zcashAddress);
 
-  // Burn doesn't require complex proofs in this direction for the user
-  // (User just burns tokens to request withdrawal)
+  // Check balance using off-chain tracking (required for mock mode)
+  const burnerAddr = burner.publicKey.toBase58();
+  const currentBalance = ctx.userBalances.get(burnerAddr) || 0n;
+  if (currentBalance < amount.toBigInt()) {
+    throw new Error('Insufficient balance');
+  }
 
   const tx = await Mina.transaction(burner.publicKey, async () => {
     await ctx.bridge.burn(
@@ -461,10 +473,14 @@ async function handleBurn(
   await tx.prove();
   await tx.sign([burner.key]).send();
 
-  // Update statistics
+  // Update off-chain balance tracking
+  ctx.userBalances.set(burnerAddr, currentBalance - amount.toBigInt());
   ctx.totalBurned += amount.toBigInt();
 
-  console.log('Burn: Total Burned:', (Number(ctx.totalBurned) / 100_000_000).toFixed(8), 'ZEC');
+  console.log(`Burn: Burned ${(Number(amount.toBigInt()) / 100_000_000).toFixed(8)} ZEC from ${burner.alias}`);
+  console.log(`Burn: Total Burned: ${(Number(ctx.totalBurned) / 100_000_000).toFixed(8)} ZEC`);
+  console.log(`Burn: Net Locked: ${(Number(ctx.totalMinted - ctx.totalBurned) / 100_000_000).toFixed(8)} ZEC`);
+  console.log('Burn: Transaction completed successfully');
 }
 
 function stringToField(input: string): Field {
@@ -528,9 +544,15 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     console.error('Request error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    sendJson(res, 500, {
-      error: 'Internal server error',
-      message: errorMessage,
+
+    // Check if it's a user-facing error (balance, validation, etc.)
+    const isUserError = errorMessage.includes('Insufficient balance') ||
+      errorMessage.includes('required') ||
+      errorMessage.includes('must be');
+
+    sendJson(res, isUserError ? 400 : 500, {
+      error: isUserError ? errorMessage : 'Internal server error',
+      details: isUserError ? undefined : errorMessage,
     });
   }
 });

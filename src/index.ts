@@ -2,7 +2,7 @@
  * Zcash-Mina Bridge
  * 
  * Exports all contracts and types for the bridge.
- * Import from here in your applications:
+ * 
  * 
  * ```typescript
  * import { zkZECToken, Bridge } from './index.js';
@@ -110,5 +110,5 @@ export const VERSION = {
   phase: 1,
   version: '0.1.0',
   name: 'Zcash-Mina Bridge',
-  description: 'Privacy-preserving bridge using recursive zero-knowledge proofs',
+  description: 'Privacy preserving bridge using recursive zero-knowledge proofs',
 };

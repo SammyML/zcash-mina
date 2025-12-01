@@ -1,7 +1,7 @@
 /**
- * Bridge- Complete Zcash-Mina Bridge Implementation
+ * This is the complete zcash-mina bridge implementation
  * 
- * Provides a privacy-preserving bridge between Zcash and Mina
+ * Provides a privacy preserving bridge between Zcash and Mina
  * using recursive zero-knowledge proofs.
  */
 
@@ -16,6 +16,8 @@ import {
   DeployArgs,
   Field,
   Bool,
+  AccountUpdate,
+  Provable,
   Poseidon,
   MerkleMapWitness,
   Struct,
@@ -139,9 +141,9 @@ export class WithdrawalRequest extends Struct({
  * - Emergency pause mechanism
  */
 export class BridgeV3 extends SmartContract {
-  // ============================================
+
   // State Variables
-  // ============================================
+
 
   // Hash of configuration (tokenAddress, operator)
   // configHash = Poseidon.hash(tokenAddress.toFields().concat(operator.toFields()))
@@ -157,12 +159,16 @@ export class BridgeV3 extends SmartContract {
   // Processed Zcash transactions root (prevent replays)
   @state(Field) processedTxRoot = State<Field>();
 
+  // Track total amounts for transparency and auditing
+  @state(UInt64) totalMinted = State<UInt64>();
+  @state(UInt64) totalBurned = State<UInt64>();
+
   // Emergency pause flag
   @state(Bool) isPaused = State<Bool>();
 
-  // ============================================
-  // Deployment & Initialization
-  // ============================================
+
+  // Deployment & Initialization 
+
 
   async deploy(args: DeployArgs) {
     await super.deploy(args);
@@ -202,13 +208,17 @@ export class BridgeV3 extends SmartContract {
     // Initialize empty processed tx set
     this.processedTxRoot.set(initialProcessedTxRoot);
 
+    // Initialize statistics
+    this.totalMinted.set(UInt64.from(0));
+    this.totalBurned.set(UInt64.from(0));
+
     // Start unpaused
     this.isPaused.set(Bool(false));
   }
 
-  // ============================================
+
   // Light Client Operations
-  // ============================================
+
 
   @method
   async updateLightClient(proof: LightClientProof) {
@@ -266,7 +276,6 @@ export class BridgeV3 extends SmartContract {
     const paused = this.isPaused.getAndRequireEquals();
     paused.assertFalse('Bridge is paused');
 
-    // 2. Verify Zcash proof
     // 2. Verify Zcash proof
     proofVerification.verify();
 
@@ -341,7 +350,11 @@ export class BridgeV3 extends SmartContract {
     const token = new zkZECToken(tokenAddress);
     token.internal.mint({ address: recipientAddress, amount: mintAmount });
 
-    // 10. Emit event
+    // 10. Update total minted
+    const currentTotalMinted = this.totalMinted.getAndRequireEquals();
+    this.totalMinted.set(currentTotalMinted.add(mintAmount));
+
+    // 11. Emit event
     this.emitEvent('minted', {
       recipient: recipientAddress,
       amount: mintAmount,
@@ -351,9 +364,7 @@ export class BridgeV3 extends SmartContract {
     });
   }
 
-  // ============================================
   // Burning Operations (zkZEC -> ZEC)
-  // ============================================
 
   @method
   async burn(
@@ -381,7 +392,11 @@ export class BridgeV3 extends SmartContract {
     const token = new zkZECToken(tokenAddress);
     token.internal.burn({ address: burnerAddress, amount });
 
-    // 4. Create withdrawal request ID
+    // 4. Update total burned
+    const currentTotalBurned = this.totalBurned.getAndRequireEquals();
+    this.totalBurned.set(currentTotalBurned.add(amount));
+
+    // 5. Create withdrawal request ID
     const requestId = Poseidon.hash([
       burnerAddress.x,
       amount.value,
@@ -389,7 +404,7 @@ export class BridgeV3 extends SmartContract {
       Field(Date.now()),
     ]);
 
-    // 5. Emit withdrawal event
+    // 6. Emit withdrawal event
     this.emitEvent('withdrawal', {
       burnerAddress,
       amount,
@@ -398,9 +413,8 @@ export class BridgeV3 extends SmartContract {
     });
   }
 
-  // ============================================
+
   // Administrative Operations
-  // ============================================
 
   @method
   async pause(tokenAddress: PublicKey, operatorAddress: PublicKey) {
@@ -437,8 +451,8 @@ export class BridgeV3 extends SmartContract {
 
   async getSnapshot(): Promise<BridgeSnapshot> {
     const snapshot = new BridgeSnapshot({
-      totalMinted: UInt64.from(0), // Removed from state
-      totalBurned: UInt64.from(0), // Removed from state
+      totalMinted: this.totalMinted.getAndRequireEquals(),
+      totalBurned: this.totalBurned.getAndRequireEquals(),
       nullifierSetRoot: this.nullifierSetRoot.getAndRequireEquals(),
       zcashBlockHeight: this.zcashBlockHeight.getAndRequireEquals(),
       timestamp: UInt64.from(Date.now()),
@@ -447,10 +461,9 @@ export class BridgeV3 extends SmartContract {
     return snapshot;
   }
 
-  // ============================================
+ 
   // Events
-  // ============================================
-
+ 
   events = {
     lightClientUpdated: LightClientUpdatedEvent,
     minted: MintedEvent,
@@ -466,7 +479,7 @@ export class BridgeV3 extends SmartContract {
 export class BridgeHelper {
   /**
    * Calculate mint fee
-   * In production: implement fee structure
+   * implement fee structure( when the product is live for general use)
    */
   static calculateMintFee(amount: UInt64): UInt64 {
     // 0.1% fee

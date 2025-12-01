@@ -101,11 +101,14 @@ export class ZcashRPC {
 }
 
 /**
- * Public Zcash testnet RPC endpoints
+ * Zcash testnet RPC endpoints
+ * Note: There are no publicly available Zcash testnet RPC endpoints.
+ * Users must run their own Zcash node or use a private RPC service.
+ * The URLs below are placeholders - replace with your own node URL.
  */
 export const ZCASH_TESTNET_RPCS = [
-    'https://testnet.zcash.com',
-    'https://zcash-testnet.drpc.org',
+    'http://localhost:18232', // Local Zcash testnet node
+    process.env.ZCASH_RPC_URL || 'http://localhost:18232',
 ];
 
 /**

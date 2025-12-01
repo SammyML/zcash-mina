@@ -413,7 +413,7 @@ export const LightClient = ZkProgram({
         const state = previousProof.publicOutput;
 
         // Get merkle root from verified block
-        // In production: store merkle roots of recent blocks
+        // if the bridge is live: store merkle roots of recent blocks
         // For PoC: assume we have the merkle root
         const merkleRoot = Field(0); // Placeholder
 
@@ -441,7 +441,7 @@ export class LightClientHelper {
    */
   static parseHeader(): ZcashBlockHeader {
     // Parse 140-byte Zcash block header
-    // In production: proper binary parsing
+    // In live: proper binary parsing
 
     // For PoC, return mock header
     return new ZcashBlockHeader({

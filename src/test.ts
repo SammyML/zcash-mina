@@ -40,11 +40,10 @@ import { BridgeV3, BridgeHelper } from './bridge.js';
 const describeOrSkip =
   process.env.RUN_FULL_TESTS === 'true' ? describe : describe.skip;
 
-// ============================================
-// Test Setup
-// ============================================
 
-describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
+// Test Setup
+
+describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let Local: any;
   let deployerAccount: PublicKey;
@@ -92,10 +91,9 @@ describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
     console.log('Compilation complete!');
   });
 
-  // ============================================
-  // Phase 1 Tests: Basic Infrastructure
-  // ============================================
-
+  
+  // Basic Infrastructure
+  
   describe('Token and Bridge Deployment', () => {
     it('should deploy zkZEC token contract', async () => {
       // Generate keypair for token
@@ -155,10 +153,9 @@ describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
     });
   });
 
-  // ============================================
-  // Phase 2 Tests: Proof Verification
-  // ============================================
-
+  
+  // Proof Verification
+  
   describe('Zcash Proof Verification', () => {
     it('should create and verify a Zcash proof', async () => {
       // Create mock Zcash proof
@@ -242,11 +239,10 @@ describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
     });
   });
 
-  // ============================================
-  // Phase 3 Tests: Light Client
-  // ============================================
-
-  describe('Phase 3: Light Client Integration', () => {
+ 
+  // Light Client
+ 
+  describe('Light Client Integration', () => {
     it('should initialize light client with genesis', async () => {
       const genesisHeader = LightClientHelper.createMockHeader(
         0,
@@ -324,11 +320,10 @@ describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
     });
   });
 
-  // ============================================
-  // Integration Tests: Full Mint Flow
-  // ============================================
+ 
+  // Full Mint Flow
 
-  describe('Integration: Full Mint Flow', () => {
+  describe('Full Mint Flow', () => {
     it('should mint zkZEC with full verification', async () => {
       const mintAmount = UInt64.from(1000000); // 0.01 ZEC
 
@@ -391,11 +386,10 @@ describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
     });
   });
 
-  // ============================================
-  // Integration Tests: Full Burn Flow
-  // ============================================
-
-  describe('Integration: Full Burn Flow', () => {
+  
+  // Full Burn Flow
+  
+  describe('Full Burn Flow', () => {
     it('should burn zkZEC and create withdrawal', async () => {
       const burnAmount = UInt64.from(500000); // 0.005 ZEC
       // const tokenAddress = bridge.token.address; // Removed
@@ -426,11 +420,10 @@ describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
     });
   });
 
-  // ============================================
+  
   // Security Tests
-  // ============================================
-
-  describe('Security: Attack Prevention', () => {
+  
+  describe('Attack Prevention', () => {
     it('should prevent double-spend attempts', async () => {
       // Try to mint with same nullifiers twice
       const zcashProof = ZcashProofHelper.createMockProof(777n, 666n);
@@ -471,9 +464,8 @@ describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
     });
   });
 
-  // ============================================
+  
   // Performance Tests
-  // ============================================
 
   describe('Performance: Optimization', () => {
     it('should efficiently verify batch of proofs', async () => {
@@ -513,10 +505,9 @@ describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
     });
   });
 
-  // ============================================
-  // Helper Function Tests
-  // ============================================
 
+  // Helper Function Tests
+  
   describe('Helper Functions', () => {
     it('should calculate fees correctly', () => {
       const amount = UInt64.from(1000000);
@@ -543,9 +534,7 @@ describeOrSkip('Zcash-Mina Bridge - Complete Test Suite', () => {
   });
 });
 
-// ============================================
+
 // Test Runner
-// ============================================
 
 console.log('Starting Zcash-Mina Bridge Test Suite');
-console.log('=========================================\n');
