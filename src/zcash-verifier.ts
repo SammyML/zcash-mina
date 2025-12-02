@@ -288,11 +288,9 @@ export const ZcashVerifier = ZkProgram({
      */
     verifyWithNullifierCheck: {
       privateInputs: [ZcashShieldedProof, NullifierSet],
-
       async method(
         txHash: Field,
         proof: ZcashShieldedProof,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         _nullifierSet: NullifierSet
       ) {
         // Verify the proof itself
@@ -306,6 +304,8 @@ export const ZcashVerifier = ZkProgram({
         const allValid = proofValid
           .and(nullifier1NotSpent)
           .and(nullifier2NotSpent);
+
+        allValid.assertTrue('Proof invalid or nullifiers already spent');
 
         return new MintOutput({
           amount: proof.getMintAmount(),

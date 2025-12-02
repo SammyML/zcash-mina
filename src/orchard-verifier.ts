@@ -45,12 +45,12 @@ export const OrchardVerifier = ZkProgram({
                     const action = bundle.actions[i];
 
                     // Verify commitment structure (simplified for demo)
-                    // In real Orchard: cmx = Poseidon(g_d, pk_d, v, rho, rcm)
+                    // When the bridge is live: cmx = Poseidon(g_d, pk_d, v, rho, rcm)
                     // Here we check it's a valid field element
                     action.cmx.assertNotEquals(Field(0), "Invalid commitment");
 
                     // Verify nullifier structure
-                    // In real Orchard: nf = Poseidon(nk, rho, psi, cm)
+                    // When the bridge is live: nf = Poseidon(nk, rho, psi, cm)
                     action.nf.assertNotEquals(Field(0), "Invalid nullifier");
                 }
 

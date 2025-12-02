@@ -283,19 +283,19 @@ async function handleMint(
     payload.amount,
     'zs1...' // Bridge's Zcash address
   );
-  console.log(`✓ Zcash Tx Created: ${zcashTx.txid}`);
+  console.log(`Zcash Tx Created: ${zcashTx.txid}`);
 
   // 2. Wait for Confirmations
   console.log('[Step 2/5] Waiting for Zcash confirmations...');
   await ctx.zcashRPC.waitForConfirmations(zcashTx.txid, 6);
-  console.log('✓ Transaction confirmed (6 blocks)');
+  console.log('Transaction confirmed (6 blocks)');
 
   // 3. Verify Block Headers (Light Client)
   console.log('[Step 3/5] Verifying Zcash block headers...');
   // In a real app, we'd verify the block header chain here.
   // For demo, we just fetch the header from our mock.
   const blockHeader = await ctx.zcashRPC.getBlockHeader(zcashTx.blockHeight);
-  console.log(`✓ Block header verified: ${blockHeader.hash.toString()}`);
+  console.log(`Block header verified: ${blockHeader.hash.toString()}`);
 
   // 4. Generate Proofs
   console.log('[Step 4/5] Generating ZK proofs...');
@@ -446,7 +446,7 @@ async function handleBurn(
   // In LocalBlockchain, network.timestamp starts at 0 and increments with slots
   const timestamp = ctx.bridge.network.timestamp.get();
   ctx.burnRequestsMap.set(requestKey, timestamp.value);
-  console.log('✓ Burn requested. Timelock started.');
+  console.log('Burn requested. Timelock started.');
 
   // Step 2: Simulate Time Passing
   console.log('[Step 2/3] Simulating 24-hour wait...');
@@ -492,7 +492,7 @@ async function handleBurn(
   ctx.userBalances.set(burnerAddr, currentBalance - amount.toBigInt());
   ctx.totalBurned += amount.toBigInt();
 
-  console.log(`✓ Burned ${(Number(amount.toBigInt()) / 100_000_000).toFixed(8)} zkZEC from ${burner.alias}`);
+  console.log(`  Burned ${(Number(amount.toBigInt()) / 100_000_000).toFixed(8)} zkZEC from ${burner.alias}`);
   console.log(`  Total Burned: ${(Number(ctx.totalBurned) / 100_000_000).toFixed(8)} zkZEC`);
   console.log(`  Net Locked: ${(Number(ctx.totalMinted - ctx.totalBurned) / 100_000_000).toFixed(8)} ZEC`);
 }
