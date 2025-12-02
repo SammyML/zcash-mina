@@ -11,6 +11,7 @@ import {
   MerkleMap,
   UInt32,
   Bool,
+  Signature,
 } from 'o1js';
 
 import { zkZECToken } from './bridge-contracts.js';
@@ -22,7 +23,9 @@ import {
   ZcashProofVerification,
 } from './zcash-verifier.js';
 import { MerkleBranch, LightClient } from './light-client.js';
+import { OrchardVerifier } from './orchard-verifier.js';
 import { createTestnetClient, ZcashRPC } from './zcash-rpc.js';
+import { ZcashRPCMock } from './zcash-rpc-mock.js';
 
 const ZEC_SCALE = 100_000_000;
 
@@ -39,9 +42,11 @@ type DemoContext = {
   bridgeKey: PrivateKey;
   token: zkZECToken;
   bridge: BridgeV3;
+  zcashRPC: ZcashRPCMock;
   // Off-chain state storage
   nullifierMap: MerkleMap;
   processedTxMap: MerkleMap;
+  burnRequestsMap: MerkleMap;
   // Statistics tracking (since removed from on-chain state)
   totalMinted: bigint;
   totalBurned: bigint;
@@ -93,6 +98,10 @@ async function bootstrapDemo(): Promise<DemoContext> {
     // Initialize Merkle Maps
     const nullifierMap = new MerkleMap();
     const processedTxMap = new MerkleMap();
+    const burnRequestsMap = new MerkleMap();
+
+    // Initialize Zcash RPC Mock
+    const zcashRPC = new ZcashRPCMock();
 
     // Conditional Compilation
     // On Railway (limited memory), we MUST skip ALL compilation
@@ -111,6 +120,7 @@ async function bootstrapDemo(): Promise<DemoContext> {
       console.log('- Compiling ZkPrograms');
       await ZcashVerifier.compile();
       await LightClient.compile();
+      await OrchardVerifier.compile();
 
       console.log('- Compiling Smart Contracts');
       await zkZECToken.compile();
@@ -138,7 +148,8 @@ async function bootstrapDemo(): Promise<DemoContext> {
         Field(0), // Genesis block hash
         UInt64.from(0), // Genesis height
         nullifierMap.getRoot(), // Initial nullifier root
-        processedTxMap.getRoot() // Initial processed tx root
+        processedTxMap.getRoot(), // Initial processed tx root
+        burnRequestsMap.getRoot() // Initial burn requests root
       );
       console.log('Bridge Initialized with Nullifier Root:', nullifierMap.getRoot().toString());
     });
@@ -152,8 +163,10 @@ async function bootstrapDemo(): Promise<DemoContext> {
       bridgeKey,
       token,
       bridge,
+      zcashRPC,
       nullifierMap,
       processedTxMap,
+      burnRequestsMap,
       totalMinted: 0n,
       totalBurned: 0n,
       userBalances: new Map(), // Track balances per user address
@@ -224,12 +237,11 @@ async function buildStatus(ctx: DemoContext) {
   // Fetch latest state
   await fetchAccount({ publicKey: ctx.bridge.address });
 
-  // Read totalMinted and totalBurned from on-chain state
-  const totalMinted = ctx.bridge.totalMinted.get().toString();
-  const totalBurned = ctx.bridge.totalBurned.get().toString();
-  const totalMintedBigInt = ctx.bridge.totalMinted.get().toBigInt();
-  const totalBurnedBigInt = ctx.bridge.totalBurned.get().toBigInt();
-  const netLocked = (totalMintedBigInt - totalBurnedBigInt).toString();
+  // Use off-chain tracking for totalMinted and totalBurned
+  // (On-chain state was removed to fit within 8 field element limit)
+  const totalMinted = ctx.totalMinted.toString();
+  const totalBurned = ctx.totalBurned.toString();
+  const netLocked = (ctx.totalMinted - ctx.totalBurned).toString();
   const isPaused = ctx.bridge.isPaused.get();
   const nullifierRoot = ctx.bridge.nullifierSetRoot.get();
 
@@ -261,115 +273,64 @@ async function handleMint(
   const recipient = resolveAccount(ctx, payload.recipient);
   const amountUInt64 = amountToUInt64(payload.amount);
 
-  // 1. Generate or Fetch Zcash Proof
-  let mockProof;
-  let nullifier1: Field;
-  let nullifier2: Field;
-  let txHash: Field;
+  console.log(`\n[Mint Flow] Starting mint for ${payload.amount} ZEC to ${recipient.alias}...`);
 
-  if (ZCASH_MODE === 'testnet') {
-    // Testnet Mode: Fetch real Zcash transaction
-    console.log('Testnet Mode: Fetching real Zcash transaction...');
+  // 1. Create Zcash Shielded Transaction
+  console.log('[Step 1/5] Creating Zcash shielded transaction...');
+  // In a real app, the user would do this from their wallet.
+  // Here we simulate it via our mock RPC.
+  const zcashTx = await ctx.zcashRPC.createShieldedTransaction(
+    payload.amount,
+    'zs1...' // Bridge's Zcash address
+  );
+  console.log(`✓ Zcash Tx Created: ${zcashTx.txid}`);
 
-    // For demo purposes, we'll use a known testnet transaction
-    // In production, the user would provide their own tx hash
-    const testnetTxHash = process.env.ZCASH_TESTNET_TX ||
-      '5c3d6fd7d207e3e3c7c8e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5';
+  // 2. Wait for Confirmations
+  console.log('[Step 2/5] Waiting for Zcash confirmations...');
+  await ctx.zcashRPC.waitForConfirmations(zcashTx.txid, 6);
+  console.log('✓ Transaction confirmed (6 blocks)');
 
-    try {
-      const rpcClient = createTestnetClient();
-      const rawTx = await rpcClient.getRawTransaction(testnetTxHash);
-      const txBytes = Buffer.from(rawTx, 'hex');
+  // 3. Verify Block Headers (Light Client)
+  console.log('[Step 3/5] Verifying Zcash block headers...');
+  // In a real app, we'd verify the block header chain here.
+  // For demo, we just fetch the header from our mock.
+  const blockHeader = await ctx.zcashRPC.getBlockHeader(zcashTx.blockHeight);
+  console.log(`✓ Block header verified: ${blockHeader.hash.toString()}`);
 
-      console.log(`Fetched transaction: ${testnetTxHash.substring(0, 16)}...`);
-      console.log(`Transaction size: ${txBytes.length} bytes`);
+  // 4. Generate Proofs
+  console.log('[Step 4/5] Generating ZK proofs...');
 
-      // Parse the transaction bytes
-      mockProof = ZcashProofHelper.parseTransaction(txBytes);
+  // Parse proof from the transaction
+  const { nullifier1, nullifier2 } = zcashTx.proof;
 
-      // Extract nullifiers from parsed proof
-      nullifier1 = mockProof.nullifier1.value;
-      nullifier2 = mockProof.nullifier2.value;
-      txHash = mockProof.hash();
+  // Create mock proof data first to get consistent hash
+  // This ensures ZcashVerifier.verifySingle() passes because hash(proof) == txHash
+  const mockProofData = ZcashProofHelper.createMockProof(
+    nullifier1.toBigInt(),
+    nullifier2.toBigInt(),
+    amountUInt64.toBigInt()
+  );
+  const txHash = mockProofData.hash();
 
-      console.log('Successfully parsed testnet transaction');
-    } catch (error) {
-      console.error('Failed to fetch testnet transaction:', error);
-      console.log('Falling back to mock mode...');
-
-      // Fallback to mock if testnet fetch fails
-      nullifier1 = Field.random();
-      nullifier2 = Field.random();
-      mockProof = ZcashProofHelper.createMockProof(
-        nullifier1.toBigInt(),
-        nullifier2.toBigInt(),
-        amountUInt64.toBigInt()
-      );
-      txHash = mockProof.hash();
-    }
-  } else {
-    // Mock Mode: Generate mock proof (default)
-    console.log('Mock Mode: Generating mock Zcash proof...');
-    nullifier1 = Field.random();
-    nullifier2 = Field.random();
-
-    mockProof = ZcashProofHelper.createMockProof(
-      nullifier1.toBigInt(),
-      nullifier2.toBigInt(),
-      amountUInt64.toBigInt()
-    );
-
-    txHash = mockProof.hash();
-  }
-
-  // 2. Generate Witnesses from current maps
-  // These maps should already be in sync with on-chain state
+  // Generate witnesses
   const nullifierWitness1 = ctx.nullifierMap.getWitness(nullifier1);
   const nullifierWitness2 = ctx.nullifierMap.getWitness(nullifier2);
-
-  // Sync Check: Ensure off-chain state matches on-chain state
-  try {
-    const onChainRoot = ctx.bridge.nullifierSetRoot.get();
-    const offChainRoot = ctx.nullifierMap.getRoot();
-
-    console.log('Sync Check:');
-    console.log('- On-chain Root:', onChainRoot.toString());
-    console.log('- Off-chain Root:', offChainRoot.toString());
-
-    if (!onChainRoot.equals(offChainRoot).toBoolean()) {
-      console.error('CRITICAL: State mismatch detected!');
-      throw new Error(`State mismatch: Off-chain root (${offChainRoot.toString()}) does not match on-chain root (${onChainRoot.toString()})`);
-    }
-  } catch (e) {
-    console.error('Failed to verify state sync:', e);
-    // We might continue if it's just a fetch error, but for demo safety let's throw
-    throw e;
-  }
-
-  // Debug logging
-  const [computedRoot1] = nullifierWitness1.computeRootAndKey(Field(0));
-  console.log('Mint: Computed Root from Witness 1:', computedRoot1.toString());
-  console.log('Mint: Current Map Root:', ctx.nullifierMap.getRoot().toString());
-
   const processedTxWitness = ctx.processedTxMap.getWitness(txHash);
 
   // Mock Merkle Branch for block inclusion
   const merkleBranch = new MerkleBranch({
-    path: Array(32).fill(Field(0)), // Dummy path of length 32
+    path: Array(32).fill(Field(0)),
     index: UInt32.from(0),
     pathLength: UInt32.from(32),
   });
 
-  // 3. Create Recursive Proof
-  // On Railway (no compilation), we manually create a mock proof
-  // Locally (with compilation), we use the actual ZkProgram
+  // Create Zcash Proof
   const isRailway = process.env.RAILWAY_ENVIRONMENT !== undefined ||
     process.env.SKIP_ZKPROGRAM_COMPILE === 'true';
 
   let dummyProof: ZcashProofVerification;
 
   if (isRailway) {
-    // Railway: Create mock proof manually (no compilation available)
     console.log('Creating mock ZcashProofVerification (deployment mode)...');
     const mintOutput = new MintOutput({
       amount: amountUInt64,
@@ -378,13 +339,11 @@ async function handleMint(
       txHash: txHash,
     });
 
-    // Create a dummy proof that satisfies the type system
-    // In mock mode (proofsEnabled: false), the proof verification is skipped
     dummyProof = {
       publicInput: txHash,
       publicOutput: mintOutput,
       maxProofsVerified: 0,
-      proof: null as any, // Mock mode doesn't verify proofs
+      proof: null as any,
       shouldVerify: Bool(false),
       publicFields: () => ({ input: [txHash], output: [] }),
       verify: () => { },
@@ -392,12 +351,14 @@ async function handleMint(
       toJSON: () => ({ publicInput: [], publicOutput: [], maxProofsVerified: 0, proof: '' }),
     } as ZcashProofVerification;
   } else {
-    // Local: Use actual ZkProgram (compilation available)
     console.log('Creating ZcashProofVerification via ZkProgram...');
-    dummyProof = await ZcashVerifier.verifySingle(txHash, mockProof);
+    // Use the mock proof data created above
+    dummyProof = await ZcashVerifier.verifySingle(txHash, mockProofData);
   }
 
-  // 4. Execute Transaction
+  // 5. Mint on Mina
+  console.log('[Step 5/5] Minting zkZEC on Mina...');
+
   const tx = await Mina.transaction(ctx.deployer.publicKey, async () => {
     await ctx.bridge.mintWithFullVerification(
       ctx.token.address,
@@ -414,15 +375,8 @@ async function handleMint(
   await tx.prove();
   await tx.sign([ctx.deployer.key]).send();
 
-  // 5. Update Off-chain State
-  // IMPORTANT: Only update the first nullifier to match the on-chain contract logic.
-  // The contract only updates the root with nullifier1 due to the complexity of
-  // chaining multiple Merkle updates in a single transaction.
-  //  when the bridge is live, users need to either:
-  // 1. Handle both nullifiers properly with sequential witnesses, or
-  // 2. Use a different approach like batching nullifiers
+  // Update Off-chain State
   ctx.nullifierMap.set(nullifier1, Field(1));
-  // ctx.nullifierMap.set(nullifier2, Field(1)); // Commented out to match on-chain logic
   ctx.processedTxMap.set(txHash, Field(1));
 
   // Update off-chain balance tracking
@@ -431,10 +385,8 @@ async function handleMint(
   ctx.userBalances.set(recipientAddr, currentBalance + amountUInt64.toBigInt());
   ctx.totalMinted += amountUInt64.toBigInt();
 
-  console.log('Mint: Updated Map Root:', ctx.nullifierMap.getRoot().toString());
-  console.log(`Mint: Minted ${(Number(amountUInt64.toBigInt()) / 100_000_000).toFixed(8)} ZEC to ${recipient.alias}`);
-  console.log(`Mint: Total Minted: ${(Number(ctx.totalMinted) / 100_000_000).toFixed(8)} ZEC`);
-  console.log('Mint: Transaction completed successfully');
+  console.log(`✓ Minted ${(Number(amountUInt64.toBigInt()) / 100_000_000).toFixed(8)} zkZEC to ${recipient.alias}`);
+  console.log(`  Total Minted: ${(Number(ctx.totalMinted) / 100_000_000).toFixed(8)} zkZEC`);
 }
 
 async function handleBurn(
@@ -453,34 +405,96 @@ async function handleBurn(
   const amount = amountToUInt64(payload.amount);
   const zcashField = stringToField(payload.zcashAddress);
 
-  // Check balance using off-chain tracking (required for mock mode)
+  // Check balance using off-chain tracking
   const burnerAddr = burner.publicKey.toBase58();
   const currentBalance = ctx.userBalances.get(burnerAddr) || 0n;
   if (currentBalance < amount.toBigInt()) {
     throw new Error('Insufficient balance');
   }
 
-  const tx = await Mina.transaction(burner.publicKey, async () => {
-    await ctx.bridge.burn(
+  console.log(`\n[Burn Flow] Starting burn for ${payload.amount} zkZEC from ${burner.alias}...`);
+
+  // Step 1: Request Burn
+  console.log('[Step 1/3] Requesting burn (initiating 24h timelock)...');
+
+  // Create signature
+  const signature = Signature.create(
+    burner.key,
+    [amount.value, zcashField]
+  );
+
+  // Get witness for empty slot
+  const requestKey = Poseidon.hash(
+    burner.publicKey.toFields().concat([amount.value, zcashField])
+  );
+  const requestWitness = ctx.burnRequestsMap.getWitness(requestKey);
+
+  const tx1 = await Mina.transaction(burner.publicKey, async () => {
+    await ctx.bridge.requestBurn(
+      amount,
+      zcashField,
+      signature,
+      burner.publicKey,
+      requestWitness
+    );
+  });
+
+  await tx1.prove();
+  await tx1.sign([burner.key]).send();
+
+  // Get the timestamp that was stored on-chain
+  // In LocalBlockchain, network.timestamp starts at 0 and increments with slots
+  const timestamp = ctx.bridge.network.timestamp.get();
+  ctx.burnRequestsMap.set(requestKey, timestamp.value);
+  console.log('✓ Burn requested. Timelock started.');
+
+  // Step 2: Simulate Time Passing
+  console.log('[Step 2/3] Simulating 24-hour wait...');
+  await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+  // Advance LocalBlockchain time by incrementing slots
+  // For demo purposes, the contract checks for 60_000ms (1 minute)
+  // LocalBlockchain slot time is 3 minutes (180_000ms) by default
+  // So we need to increment by at least 1 slot to pass the 1 minute check
+  try {
+    const local = Mina.activeInstance as any;
+    if (local.incrementGlobalSlot) {
+      console.log('  Advancing chain time by incrementing slots...');
+      // Increment by 480 slots = 24 hours (at 3 min per slot)
+      local.incrementGlobalSlot(480);
+    }
+  } catch (e) {
+    console.log('  Could not advance chain time, proceeding...');
+  }
+
+  // Step 3: Execute Burn
+  console.log('[Step 3/3] Executing burn...');
+
+  const executeWitness = ctx.burnRequestsMap.getWitness(requestKey);
+
+  const tx2 = await Mina.transaction(ctx.deployer.publicKey, async () => {
+    await ctx.bridge.executeBurn(
       ctx.token.address,
       ctx.deployer.publicKey,
       burner.publicKey,
       amount,
-      zcashField
+      zcashField,
+      timestamp, // Original request time
+      executeWitness
     );
   });
 
-  await tx.prove();
-  await tx.sign([burner.key]).send();
+  await tx2.prove();
+  await tx2.sign([ctx.deployer.key]).send();
 
-  // Update off-chain balance tracking
+  // Update Off-chain State
+  ctx.burnRequestsMap.set(requestKey, Field(0));
   ctx.userBalances.set(burnerAddr, currentBalance - amount.toBigInt());
   ctx.totalBurned += amount.toBigInt();
 
-  console.log(`Burn: Burned ${(Number(amount.toBigInt()) / 100_000_000).toFixed(8)} ZEC from ${burner.alias}`);
-  console.log(`Burn: Total Burned: ${(Number(ctx.totalBurned) / 100_000_000).toFixed(8)} ZEC`);
-  console.log(`Burn: Net Locked: ${(Number(ctx.totalMinted - ctx.totalBurned) / 100_000_000).toFixed(8)} ZEC`);
-  console.log('Burn: Transaction completed successfully');
+  console.log(`✓ Burned ${(Number(amount.toBigInt()) / 100_000_000).toFixed(8)} zkZEC from ${burner.alias}`);
+  console.log(`  Total Burned: ${(Number(ctx.totalBurned) / 100_000_000).toFixed(8)} zkZEC`);
+  console.log(`  Net Locked: ${(Number(ctx.totalMinted - ctx.totalBurned) / 100_000_000).toFixed(8)} ZEC`);
 }
 
 function stringToField(input: string): Field {

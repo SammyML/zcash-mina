@@ -7,6 +7,7 @@ import { zkZECToken } from './bridge-contracts.js';
 import { BridgeV3 } from './bridge.js';
 import { LightClient } from './light-client.js';
 import { ZcashVerifier } from './zcash-verifier.js';
+import { OrchardVerifier } from './orchard-verifier.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -78,12 +79,14 @@ async function deployToNetwork(network: string) {
     // Compile ZkPrograms first (they are dependencies for smart contracts)
     await ZcashVerifier.compile();
     console.log('ZcashVerifier compiled');
+    await LightClient.compile();
+    console.log('LightClient compiled');
+    await OrchardVerifier.compile();
+    console.log('OrchardVerifier compiled');
 
     // Then compile smart contracts
     await zkZECToken.compile();
     console.log('zkZECToken compiled');
-    await LightClient.compile();
-    console.log('LightClient compiled');
     await BridgeV3.compile();
     console.log('BridgeV3 compiled');
 
@@ -120,7 +123,8 @@ async function deployToNetwork(network: string) {
             Field(0), // Genesis hash
             UInt64.from(0), // Genesis height
             new MerkleMap().getRoot(),
-            new MerkleMap().getRoot()
+            new MerkleMap().getRoot(),
+            new MerkleMap().getRoot() // Initial burn requests root
         );
     });
     await deployBridgeTx.sign([deployerKey, bridgeKey]).send();

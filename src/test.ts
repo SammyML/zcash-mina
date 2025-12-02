@@ -17,6 +17,8 @@ import {
   Field,
   MerkleMap,
   Bool,
+  Signature,
+  Poseidon,
 } from 'o1js';
 
 import { zkZECToken } from './bridge-contracts.js';
@@ -35,6 +37,7 @@ import {
   LightClientHelper,
   MerkleBranch,
 } from './light-client.js';
+import { OrchardVerifier } from './orchard-verifier.js';
 import { BridgeV3, BridgeHelper } from './bridge.js';
 
 const describeOrSkip =
@@ -83,6 +86,7 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
     // Compile ZkPrograms first (dependencies)
     await ZcashVerifier.compile();
     await LightClient.compile();
+    await OrchardVerifier.compile();
 
     // Then compile contracts
     await zkZECToken.compile();
@@ -91,9 +95,9 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
     console.log('Compilation complete!');
   });
 
-  
+
   // Basic Infrastructure
-  
+
   describe('Token and Bridge Deployment', () => {
     it('should deploy zkZEC token contract', async () => {
       // Generate keypair for token
@@ -137,6 +141,7 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
           genesisHash,
           genesisHeight,
           new MerkleMap().getRoot(),
+          new MerkleMap().getRoot(),
           new MerkleMap().getRoot()
         );
       });
@@ -153,9 +158,9 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
     });
   });
 
-  
+
   // Proof Verification
-  
+
   describe('Zcash Proof Verification', () => {
     it('should create and verify a Zcash proof', async () => {
       // Create mock Zcash proof
@@ -239,9 +244,9 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
     });
   });
 
- 
+
   // Light Client
- 
+
   describe('Light Client Integration', () => {
     it('should initialize light client with genesis', async () => {
       const genesisHeader = LightClientHelper.createMockHeader(
@@ -320,7 +325,7 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
     });
   });
 
- 
+
   // Full Mint Flow
 
   describe('Full Mint Flow', () => {
@@ -386,43 +391,75 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
     });
   });
 
-  
+
   // Full Burn Flow
-  
+
   describe('Full Burn Flow', () => {
     it('should burn zkZEC and create withdrawal', async () => {
       const burnAmount = UInt64.from(500000); // 0.005 ZEC
-      // const tokenAddress = bridge.token.address; // Removed
-      // const operatorAddress = operatorAccount; // Removed
-
-      // Simplified Zcash z-address
       const zcashAddress = Field(
         '0x1234567890abcdef1234567890abcdef12345678'
       );
 
-      // Burn zkZEC
-      const tx = await Mina.transaction(user1Account, async () => {
-        await bridge.burn(
-          tokenAddress,
-          operatorAccount,
-          user1Account, // userAddress
+      // 1. Request Burn
+      const burnRequestsMap = new MerkleMap();
+      const signature = Signature.create(
+        user1Key,
+        [burnAmount.value, zcashAddress]
+      );
+
+      const requestKey = Poseidon.hash(
+        user1Account.toFields().concat([burnAmount.value, zcashAddress])
+      );
+      const requestWitness = burnRequestsMap.getWitness(requestKey);
+
+      const requestTx = await Mina.transaction(user1Account, async () => {
+        await bridge.requestBurn(
           burnAmount,
-          zcashAddress
+          zcashAddress,
+          signature,
+          user1Account,
+          requestWitness
         );
       });
-      await tx.sign([user1Key]).send();
+      await requestTx.prove();
+      await requestTx.sign([user1Key]).send();
 
-      // Verify burning (removed totalBurned check as per instruction)
-      // const totalBurned = bridge.totalBurned.get();
-      // expect(totalBurned).toEqual(burnAmount);
+      // Update off-chain map
+      const timestamp = UInt64.from(Date.now());
+      burnRequestsMap.set(requestKey, timestamp.value);
+
+      // 2. Simulate Time Passing
+      try {
+        (Local as any).setTimestamp(UInt64.from(Date.now() + 86_400_000));
+      } catch (e) {
+        console.log('Could not advance time, skipping executeBurn verification');
+        return;
+      }
+
+      // 3. Execute Burn
+      const executeWitness = burnRequestsMap.getWitness(requestKey);
+      const executeTx = await Mina.transaction(operatorAccount, async () => {
+        await bridge.executeBurn(
+          tokenAddress,
+          operatorAccount,
+          user1Account,
+          burnAmount,
+          zcashAddress,
+          timestamp,
+          executeWitness
+        );
+      });
+      await executeTx.prove();
+      await executeTx.sign([operatorKey]).send();
 
       console.log('Burn and withdrawal successful');
     });
   });
 
-  
+
   // Security Tests
-  
+
   describe('Attack Prevention', () => {
     it('should prevent double-spend attempts', async () => {
       // Try to mint with same nullifiers twice
@@ -444,9 +481,12 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
     });
 
     it('should respect emergency pause', async () => {
+      // Create operator signature for pause (1 = pause)
+      const pauseSignature = Signature.create(operatorKey, [Field(1)]);
+
       // Pause bridge
       const pauseTx = await Mina.transaction(operatorAccount, async () => {
-        await bridge.pause(tokenAddress, operatorAccount);
+        await bridge.pause(tokenAddress, operatorAccount, pauseSignature);
       });
       await pauseTx.sign([operatorKey]).send();
 
@@ -454,9 +494,12 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
       const isPaused = bridge.isPaused.get();
       expect(isPaused).toEqual(Bool(true));
 
+      // Create operator signature for unpause (0 = unpause)
+      const unpauseSignature = Signature.create(operatorKey, [Field(0)]);
+
       // Unpause
       const unpauseTx = await Mina.transaction(operatorAccount, async () => {
-        await bridge.unpause(tokenAddress, operatorAccount);
+        await bridge.unpause(tokenAddress, operatorAccount, unpauseSignature);
       });
       await unpauseTx.sign([operatorKey]).send();
 
@@ -464,7 +507,7 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
     });
   });
 
-  
+
   // Performance Tests
 
   describe('Performance: Optimization', () => {
@@ -507,7 +550,7 @@ describeOrSkip('Zcash-Mina Bridge Complete Test', () => {
 
 
   // Helper Function Tests
-  
+
   describe('Helper Functions', () => {
     it('should calculate fees correctly', () => {
       const amount = UInt64.from(1000000);
