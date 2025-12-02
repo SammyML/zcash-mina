@@ -23,7 +23,7 @@ npm run build
 
 **Terminal 1 - Backend:**
 ```bash
-npm run demo:server
+npm run demo:server  # takes approx 19mins for compilation on my local machine
 ```
 
 **Terminal 2 - Frontend:**
@@ -49,6 +49,7 @@ npm run demo:ui
 3. Provide Zcash z-address
 4. Click "Burn zkZEC"
 5. Creates withdrawal request
+6. **Note**: The demo simulates the 24h timelock by advancing the blockchain time automatically.
 
 ### Live Statistics
 - **Nullifier Root**: Merkle root of spent nullifiers
@@ -65,6 +66,7 @@ npm run demo:ui
 
 **1. ZkPrograms**
 - `ZcashVerifier`: Verifies Zcash shielded transaction proofs
+- `OrchardVerifier`: Native Pallas/Vesta verification circuit
 - `LightClient`: Tracks Zcash blockchain headers
 
 **2. Smart Contracts**
